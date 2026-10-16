@@ -136,18 +136,59 @@ function createFullMixxxControls() {
 
 const MIXXX_SCHEMA_CONTROLS = createFullMixxxControls();
 const MIDI_CC_CONTROL_MAP = new Map([
+  [0x30, "jog_a"],
+  [0x31, "jog_b"],
+  [0x32, "pitch_a"],
+  [0x33, "pitch_b"],
   [0x34, "channel_fader_a"],
-  [0x39, "channel_fader_b"]
+  [0x35, "eq_top_left"],
+  [0x36, "eq_mid_left"],
+  [0x37, "eq_low_left"],
+  [0x38, "crossfader"],
+  [0x39, "channel_fader_b"],
+  [0x3A, "eq_top_right"],
+  [0x3B, "eq_mid_right"],
+  [0x3C, "eq_low_right"]
 ]);
 const MIDI_NOTE_CONTROL_MAP = new Map([
+  // Hercules DJ Control MP3 e2, MIDI input commands 1–46.
+  // Source: Hercules official user manual, section 6 (MIDI mode).
+  [0x01, "fx1_a"],
+  [0x02, "fx2_a"],
+  [0x03, "fx3_a"],
+  [0x04, "fx4_a"],
+  [0x09, "shift_a"],
+  [0x0A, "pitchbend_minus_a"],
+  [0x0B, "pitchbend_plus_a"],
   [0x0C, "prev_a"],
   [0x0D, "next_a"],
+  [0x0E, "cue_a"],
   [0x0F, "play_a"],
   [0x10, "listen_a"],
+  [0x11, "load_a"],
+  [0x12, "sync_a"],
+  [0x13, "master_tempo_a"],
+  [0x15, "fx1_b"],
+  [0x16, "fx2_b"],
+  [0x17, "fx3_b"],
+  [0x18, "fx4_b"],
+  [0x1D, "shift_b"],
+  [0x1E, "pitchbend_minus_b"],
+  [0x1F, "pitchbend_plus_b"],
   [0x20, "prev_b"],
   [0x21, "next_b"],
+  [0x22, "cue_b"],
   [0x23, "play_b"],
-  [0x24, "listen_b"]
+  [0x24, "listen_b"],
+  [0x25, "load_b"],
+  [0x26, "sync_b"],
+  [0x27, "master_tempo_b"],
+  [0x29, "browse_up"],
+  [0x2A, "browse_down"],
+  [0x2B, "files"],
+  [0x2C, "folder"],
+  [0x2D, "scratch"],
+  [0x2E, "automix"]
 ]);
 const VOICE_PRESET_OPTIONS = ["Normal", "Grave", "Aguda", "Robo", "Radio", "Eco"];
 
@@ -316,6 +357,8 @@ const runtime = {
   personalVolumeDispatch: null,
   buttonActionCooldown: new Map(),
   midiLearnControlId: null,
+  lastMidiControlId: null,
+  midiActivityTimer: null,
   activeVoicePreset: "Normal"
 };
 
@@ -1140,6 +1183,7 @@ function bindMidiInputs() {
     runtime.midiInputsBound.delete(id);
   }
   renderStatusOverview();
+  return runtime.midiInputsBound.size;
 }
 
 function normalizeFaderMidiToUnit(rawValue) {
@@ -1165,9 +1209,21 @@ function getMidiCcFromBinding(binding) {
   return Number.isInteger(value) && value >= 0 && value <= 127 ? value : null;
 }
 
+function getMidiNoteFromBinding(binding) {
+  const match = String(binding || "").match(/\bnote\s*[:#]?\s*(\d{1,3})\b/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isInteger(value) && value >= 0 && value <= 127 ? value : null;
+}
+
 function findControlIdForMidiCc(midiNo) {
   const learnedControl = state.controls.find((control) => getMidiCcFromBinding(control.action?.midi) === midiNo);
   return learnedControl?.id || MIDI_CC_CONTROL_MAP.get(midiNo) || null;
+}
+
+function findControlIdForMidiNote(midiNo) {
+  const learnedControl = state.controls.find((control) => getMidiNoteFromBinding(control.action?.midi) === midiNo);
+  return learnedControl?.id || MIDI_NOTE_CONTROL_MAP.get(midiNo) || null;
 }
 
 function getRelativeMidiSteps(rawValue) {
@@ -1176,24 +1232,41 @@ function getRelativeMidiSteps(rawValue) {
   return value <= 63 ? value : -(128 - value);
 }
 
+function recordMidiActivity(controlId) {
+  const control = state.controls.find((item) => item.id === controlId);
+  if (!control) return;
+
+  const changed = runtime.lastMidiControlId !== controlId;
+  runtime.lastMidiControlId = controlId;
+  if (changed) renderStageStatus();
+
+  if (runtime.midiActivityTimer) clearTimeout(runtime.midiActivityTimer);
+  runtime.midiActivityTimer = setTimeout(() => {
+    runtime.lastMidiControlId = null;
+    runtime.midiActivityTimer = null;
+    renderStageStatus();
+  }, 1800);
+}
+
 function renderMidiLearnUi(control = getSelectedControl()) {
   if (!elements.midiLearnBtn || !elements.midiLearnHint) return;
   const isLearning = Boolean(runtime.midiLearnControlId);
   const learningControl = state.controls.find((item) => item.id === runtime.midiLearnControlId);
   elements.midiLearnBtn.disabled = !control;
-  elements.midiLearnBtn.textContent = isLearning ? "A aguardar movimento…" : "Detetar knob / fader";
+  elements.midiLearnBtn.textContent = isLearning ? "A aguardar movimento…" : "Detetar controlo";
 
   if (isLearning && learningControl) {
-    elements.midiLearnHint.textContent = `Agora roda/move ${learningControl.name} na mesa.`;
+    elements.midiLearnHint.textContent = `Agora carrega ou mexe em ${learningControl.name} na mesa.`;
   } else if (control) {
-    const binding = getMidiCcFromBinding(control.action?.midi);
-    elements.midiLearnHint.textContent = binding === null
-      ? "Carrega aqui e roda o knob/fader físico que queres usar."
-      : `MIDI associado: CC ${binding}. Podes voltar a detetar se quiseres mudar.`;
+    const ccBinding = getMidiCcFromBinding(control.action?.midi);
+    const noteBinding = getMidiNoteFromBinding(control.action?.midi);
+    const bindingText = ccBinding !== null ? `CC ${ccBinding}` : noteBinding !== null ? `Nota ${noteBinding}` : "";
+    elements.midiLearnHint.textContent = bindingText
+      ? `MIDI associado: ${bindingText}. Podes voltar a detetar se quiseres mudar.`
+      : "Carrega aqui e mexe no controlo físico que queres usar.";
   } else {
     elements.midiLearnHint.textContent = "Seleciona um controlo e carrega aqui; depois roda o knob físico.";
   }
-  return runtime.midiInputsBound.size;
 }
 
 function startMidiLearn() {
@@ -1204,7 +1277,7 @@ function startMidiLearn() {
   }
   runtime.midiLearnControlId = control.id;
   renderMidiLearnUi(control);
-  showToast(`Roda agora ${control.name} na mesa para o detetar.`);
+  showToast(`Carrega ou mexe agora ${control.name} na mesa para o detetar.`);
 }
 
 function onMidiMessage(event) {
@@ -1215,30 +1288,34 @@ function onMidiMessage(event) {
   const midiNo = data[1];
   const rawValue = data[2];
 
-  if (status === 0xB0) {
-    const learnControlId = runtime.midiLearnControlId;
-    if (learnControlId) {
-      const learnControl = state.controls.find((item) => item.id === learnControlId);
-      runtime.midiLearnControlId = null;
-      if (learnControl) {
-        learnControl.action = { ...learnControl.action, midi: `cc ${midiNo}` };
-        if (learnControl.id === state.selectedId && elements.midiBinding) {
-          elements.midiBinding.value = learnControl.action.midi;
-        }
-        saveState();
-        renderMidiLearnUi(learnControl);
-        renderControlList();
-        renderJsonPreview();
-        showToast(`${learnControl.name} associado ao CC ${midiNo}.`);
+  const learnControlId = runtime.midiLearnControlId;
+  const isButtonPress = status === 0x90 && rawValue > 0;
+  const isContinuousControl = status === 0xB0;
+  if (learnControlId && (isButtonPress || isContinuousControl)) {
+    const learnControl = state.controls.find((item) => item.id === learnControlId);
+    runtime.midiLearnControlId = null;
+    if (learnControl) {
+      const binding = isButtonPress ? `note ${midiNo}` : `cc ${midiNo}`;
+      learnControl.action = { ...learnControl.action, midi: binding };
+      if (learnControl.id === state.selectedId && elements.midiBinding) {
+        elements.midiBinding.value = binding;
       }
-      return;
+      saveState();
+      renderMidiLearnUi(learnControl);
+      renderControlList();
+      renderJsonPreview();
+      showToast(`${learnControl.name} associado a ${isButtonPress ? "Nota" : "CC"} ${midiNo}.`);
     }
+    return;
+  }
 
+  if (status === 0xB0) {
     const controlId = findControlIdForMidiCc(midiNo);
     if (!controlId) return;
 
     const control = state.controls.find((item) => item.id === controlId);
     if (!control) return;
+    recordMidiActivity(controlId);
 
     const normalized = normalizeFaderMidiToUnit(rawValue);
     const action = control.action || defaultAction();
@@ -1267,8 +1344,9 @@ function onMidiMessage(event) {
 
   if (status === 0x90) {
     if (rawValue <= 0) return; // note-off
-    const controlId = MIDI_NOTE_CONTROL_MAP.get(midiNo);
+    const controlId = findControlIdForMidiNote(midiNo);
     if (!controlId) return;
+    recordMidiActivity(controlId);
     void handleMappedButtonPress(controlId);
   }
 }
@@ -2079,6 +2157,8 @@ function renderStageStatus() {
   const selected = getSelectedControl();
   const photoText = isPhotoLoaded() ? "Foto carregada" : "Sem foto";
   const selectedText = selected ? ` | Selecionado: ${selected.name}` : "";
+  const midiControl = state.controls.find((control) => control.id === runtime.lastMidiControlId);
+  const midiActivityText = midiControl ? ` | MIDI: ${midiControl.name}` : "";
   const voicePresetText = runtime.activeVoicePreset ? ` | Voz: ${runtime.activeVoicePreset}` : "";
   let calibrationText = "";
   if (state.calibrationMode) {
@@ -2088,7 +2168,7 @@ function renderStageStatus() {
       calibrationText = ` | Calibracao ${state.calibrationIndex + 1}/${list.length}: clica em ${target.name}`;
     }
   }
-  elements.stageStatus.textContent = `${photoText} | ${total} controlos | ${assigned} mapeados${selectedText}${voicePresetText}${calibrationText}`;
+  elements.stageStatus.textContent = `${photoText} | ${total} controlos | ${assigned} mapeados${selectedText}${midiActivityText}${voicePresetText}${calibrationText}`;
 }
 
 function addControl() {
