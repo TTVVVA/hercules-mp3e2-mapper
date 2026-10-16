@@ -347,6 +347,7 @@ const runtime = {
   midiReconnectTimer: null,
   appVolumeDispatch: new Map(),
   appVolumeErrorCache: new Map(),
+  relativeAppVolumeState: new Map(),
   audioDevices: [],
   audioDevicesLoading: false,
   audioDevicesError: "",
@@ -522,8 +523,18 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, n));
 }
 
+function isRelativeAppVolumeControl(control) {
+  return Boolean(control && (control.type === "jog" || /^pitch_[ab]$/.test(control.id)));
+}
+
 function isAppVolumeCapableControl(control) {
-  return Boolean(control && (control.id === "channel_fader_a" || control.id === "channel_fader_b"));
+  return Boolean(
+    control && (
+      control.id === "channel_fader_a" ||
+      control.id === "channel_fader_b" ||
+      isRelativeAppVolumeControl(control)
+    )
+  );
 }
 
 function isDesktopBridgeAvailable() {
@@ -532,6 +543,10 @@ function isDesktopBridgeAvailable() {
 
 function canSetAppVolume() {
   return Boolean(window.electronDesktop && typeof window.electronDesktop.setAppVolume === "function");
+}
+
+function canGetAppVolume() {
+  return Boolean(window.electronDesktop && typeof window.electronDesktop.getAppVolume === "function");
 }
 
 function canUseAudioRouter() {
@@ -1322,7 +1337,11 @@ function onMidiMessage(event) {
     if (action.type === "app_volume") {
       const processName = String(action.value || "").trim();
       if (!processName || !canSetAppVolume()) return;
-      queueAppVolumeUpdate(controlId, processName, normalized);
+      if (isRelativeAppVolumeControl(control)) {
+        queueRelativeAppVolumeUpdate(controlId, processName, rawValue);
+      } else {
+        queueAppVolumeUpdate(controlId, processName, normalized);
+      }
       return;
     }
 
@@ -1380,6 +1399,90 @@ async function flushAppVolumeUpdate(controlId) {
   }
 
   const errorText = String(result?.error || "Falha ao ajustar volume da app.");
+  const last = runtime.appVolumeErrorCache.get(controlId);
+  const now = Date.now();
+  if (!last || last.errorText !== errorText || now - last.at > 2000) {
+    runtime.appVolumeErrorCache.set(controlId, { errorText, at: now });
+    showToast(`Volume app falhou (${processName}): ${errorText}`);
+  }
+}
+
+// O Jog/Pitch envia valores relativos (1..63 para um lado e 127..64 para o
+// outro). Trata-los como a posicao de um fader fazia o volume saltar logo
+// entre 0% e 100%. Cada mensagem passa agora a ser apenas um pequeno passo.
+const RELATIVE_APP_VOLUME_STEP = 0.005;
+const RELATIVE_APP_VOLUME_MAX_STEPS = 4;
+
+function queueRelativeAppVolumeUpdate(controlId, processName, rawValue) {
+  if (!canGetAppVolume()) return;
+
+  const rawSteps = getRelativeMidiSteps(rawValue);
+  if (!rawSteps) return;
+
+  const steps = Math.sign(rawSteps) * Math.min(Math.abs(rawSteps), RELATIVE_APP_VOLUME_MAX_STEPS);
+  const entry = runtime.relativeAppVolumeState.get(controlId) || {
+    processName,
+    volume: null,
+    pendingDelta: 0,
+    running: false
+  };
+
+  // If the user changes the target app, obtain its current level again before
+  // applying the next turn of the wheel.
+  if (entry.processName !== processName) {
+    entry.processName = processName;
+    entry.volume = null;
+    entry.pendingDelta = 0;
+  }
+
+  entry.pendingDelta = clampNumber(entry.pendingDelta + (steps * RELATIVE_APP_VOLUME_STEP), -0.5, 0.5, 0);
+  runtime.relativeAppVolumeState.set(controlId, entry);
+  if (!entry.running) {
+    void flushRelativeAppVolumeUpdate(controlId);
+  }
+}
+
+async function flushRelativeAppVolumeUpdate(controlId) {
+  const entry = runtime.relativeAppVolumeState.get(controlId);
+  if (!entry || entry.running || !entry.processName) return;
+
+  entry.running = true;
+  try {
+    while (Math.abs(entry.pendingDelta) > 0.00001) {
+      const delta = entry.pendingDelta;
+      entry.pendingDelta = 0;
+
+      if (!Number.isFinite(entry.volume)) {
+        const current = await window.electronDesktop.getAppVolume(entry.processName);
+        if (!current?.ok || !Number.isFinite(Number(current.volume))) {
+          showAppVolumeError(controlId, entry.processName, current?.error || "Nao foi possivel ler o volume atual.");
+          return;
+        }
+        entry.volume = Number(current.volume);
+      }
+
+      const nextVolume = clampNumber(entry.volume + delta, 0, 1, entry.volume);
+      if (Math.abs(nextVolume - entry.volume) < 0.00001) continue;
+
+      const result = await window.electronDesktop.setAppVolume(entry.processName, nextVolume);
+      if (!result?.ok) {
+        showAppVolumeError(controlId, entry.processName, result?.error || "Falha ao ajustar volume da app.");
+        return;
+      }
+
+      entry.volume = Number.isFinite(Number(result.volume)) ? Number(result.volume) : nextVolume;
+      runtime.appVolumeErrorCache.delete(controlId);
+    }
+  } finally {
+    entry.running = false;
+    if (Math.abs(entry.pendingDelta) > 0.00001) {
+      void flushRelativeAppVolumeUpdate(controlId);
+    }
+  }
+}
+
+function showAppVolumeError(controlId, processName, error) {
+  const errorText = String(error || "Falha ao ajustar volume da app.");
   const last = runtime.appVolumeErrorCache.get(controlId);
   const now = Date.now();
   if (!last || last.errorText !== errorText || now - last.at > 2000) {
@@ -1736,7 +1839,7 @@ function renderActionConfigurator(control) {
   }
 
   if (!canUseAppVolume) {
-    elements.appTargetHint.textContent = "Esta funcao foi pensada para os faders A e B (volume por app no Windows).";
+    elements.appTargetHint.textContent = "Esta funcao pode ser usada nos faders, Jog A/B e Pitch A/B.";
   } else if (runtime.openAppsError) {
     elements.appTargetHint.textContent = `Falha a listar apps: ${runtime.openAppsError}`;
   } else if (!runtime.openAppsLoaded) {
@@ -1744,8 +1847,12 @@ function renderActionConfigurator(control) {
   } else if (!runtime.openApps.length) {
     elements.appTargetHint.textContent = "Nao encontrei apps com janela aberta. Abre a app e clica em Atualizar apps.";
   } else {
-    const side = control.id === "channel_fader_a" ? "Fader A" : "Fader B";
-    elements.appTargetHint.textContent = `${side}: seleciona a app aberta cujo som queres controlar.`;
+    if (isRelativeAppVolumeControl(control)) {
+      elements.appTargetHint.textContent = `${control.name}: roda para baixar/subir a app em passos pequenos, sem saltar para o limite.`;
+    } else {
+      const side = control.id === "channel_fader_a" ? "Fader A" : "Fader B";
+      elements.appTargetHint.textContent = `${side}: seleciona a app aberta cujo som queres controlar.`;
+    }
   }
 
   renderAppTargetOptions(control.action?.value || "");

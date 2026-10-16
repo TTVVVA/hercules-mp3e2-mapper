@@ -422,8 +422,21 @@ handleIpc("desktop:set-app-volume", async (_event, payload) => {
     return {
       ok: Boolean(result?.Ok ?? result?.ok),
       error: result?.Error ?? result?.error ?? null,
-      sessionsMatched: Number(result?.SessionsMatched ?? result?.sessionsMatched ?? 0)
+      sessionsMatched: Number(result?.SessionsMatched ?? result?.sessionsMatched ?? 0),
+      volume: result?.Volume ?? result?.volume ?? null
     };
+  } catch (error) {
+    return { ok: false, error: String(error?.message || error) };
+  }
+});
+
+handleIpc("desktop:get-app-volume", async (_event, payload) => {
+  try {
+    const processName = String(payload?.processName || "").trim();
+    if (!processName) {
+      return { ok: false, error: "Processo vazio." };
+    }
+    return asBridgeResult(await runAppVolumeBridge(["get-process-volume", "--process", processName]));
   } catch (error) {
     return { ok: false, error: String(error?.message || error) };
   }

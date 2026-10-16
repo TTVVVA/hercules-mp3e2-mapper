@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("electronMeta", {
 contextBridge.exposeInMainWorld("electronDesktop", {
   listOpenApps: () => ipcRenderer.invoke("desktop:list-open-apps"),
   setAppVolume: (processName, volume) => ipcRenderer.invoke("desktop:set-app-volume", { processName, volume }),
+  getAppVolume: (processName) => ipcRenderer.invoke("desktop:get-app-volume", { processName }),
   listAudioDevices: () => ipcRenderer.invoke("desktop:list-audio-devices"),
   setDefaultAudioDevice: (deviceId) => ipcRenderer.invoke("desktop:set-default-audio-device", { deviceId }),
   setPersonalOutputVolume: (deviceId, volume) => ipcRenderer.invoke("desktop:set-personal-output-volume", { deviceId, volume }),

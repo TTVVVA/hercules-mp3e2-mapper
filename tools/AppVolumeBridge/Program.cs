@@ -84,6 +84,7 @@ internal static class Program
             return command switch
             {
                 "set" => HandleSet(args.Skip(1).ToArray()),
+                "get-process-volume" => HandleGetProcessVolume(args.Skip(1).ToArray()),
                 "list-render-devices" => HandleListRenderDevices(),
                 "set-default-render-device" => HandleSetDefaultRenderDevice(args.Skip(1).ToArray()),
                 "set-render-device-volume" => HandleSetRenderDeviceVolume(args.Skip(1).ToArray()),
@@ -167,6 +168,37 @@ internal static class Program
             SessionsMatched = matched,
             Process = normalized,
             Volume = snappedVolume
+        }, 0);
+    }
+
+    private static int HandleGetProcessVolume(string[] args)
+    {
+        var processName = GetOption(args, "--process");
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            return WriteJson(new Result { Ok = false, Error = "Missing --process." }, 1);
+        }
+
+        var normalized = NormalizeProcessName(processName);
+        var matches = GetVolumeForProcessSessions(normalized, out var volume, out var muted);
+        if (matches == 0)
+        {
+            return WriteJson(new Result
+            {
+                Ok = false,
+                Error = $"No active audio session found for process '{normalized}'.",
+                SessionsMatched = 0,
+                Process = normalized
+            }, 2);
+        }
+
+        return WriteJson(new Result
+        {
+            Ok = true,
+            SessionsMatched = matches,
+            Process = normalized,
+            Volume = volume,
+            Muted = muted
         }, 0);
     }
 
@@ -1050,7 +1082,7 @@ internal static class Program
     private static float SnapVolume(float volume)
     {
         var value = Math.Clamp(volume, 0f, 1f);
-        if (value <= 0.08f) return 0f;
+        if (value <= 0.005f) return 0f;
         if (value >= 0.995f) return 1f;
         return value;
     }
@@ -1125,35 +1157,84 @@ internal static class Program
     {
         var count = 0;
         using var enumerator = new MMDeviceEnumerator();
-        using var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-        var sessions = device.AudioSessionManager.Sessions;
-
-        for (var i = 0; i < sessions.Count; i++)
+        var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+        foreach (var device in devices)
         {
-            using var session = sessions[i];
-            if (session is null) continue;
-
-            var pid = (int)session.GetProcessID;
-            if (pid <= 0) continue;
-
-            string? sessionProcessName;
-            try
+            using (device)
             {
-                sessionProcessName = Process.GetProcessById(pid).ProcessName;
-            }
-            catch
-            {
-                continue;
-            }
+                var sessions = device.AudioSessionManager.Sessions;
+                for (var i = 0; i < sessions.Count; i++)
+                {
+                    using var session = sessions[i];
+                    if (session is null) continue;
 
-            if (!string.Equals(sessionProcessName, processName, StringComparison.OrdinalIgnoreCase)) continue;
+                    var pid = (int)session.GetProcessID;
+                    if (pid <= 0) continue;
 
-            session.SimpleAudioVolume.Volume = volume;
-            session.SimpleAudioVolume.Mute = volume <= 0.0001f;
-            count++;
+                    string? sessionProcessName;
+                    try
+                    {
+                        using var process = Process.GetProcessById(pid);
+                        sessionProcessName = process.ProcessName;
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    if (!string.Equals(sessionProcessName, processName, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    session.SimpleAudioVolume.Volume = volume;
+                    session.SimpleAudioVolume.Mute = volume <= 0.0001f;
+                    count++;
+                }
+            }
         }
 
         return count;
+    }
+
+    private static int GetVolumeForProcessSessions(string processName, out float volume, out bool muted)
+    {
+        var values = new List<float>();
+        var allMuted = true;
+        using var enumerator = new MMDeviceEnumerator();
+        var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+        foreach (var device in devices)
+        {
+            using (device)
+            {
+                var sessions = device.AudioSessionManager.Sessions;
+                for (var i = 0; i < sessions.Count; i++)
+                {
+                    using var session = sessions[i];
+                    if (session is null) continue;
+
+                    var pid = (int)session.GetProcessID;
+                    if (pid <= 0) continue;
+
+                    string? sessionProcessName;
+                    try
+                    {
+                        using var process = Process.GetProcessById(pid);
+                        sessionProcessName = process.ProcessName;
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    if (!string.Equals(sessionProcessName, processName, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    values.Add(session.SimpleAudioVolume.Volume);
+                    if (!session.SimpleAudioVolume.Mute) allMuted = false;
+                }
+            }
+        }
+
+        volume = values.Count == 0 ? 0f : values.Average();
+        muted = values.Count > 0 && allMuted;
+        return values.Count;
     }
 
     // This uses the per-application output policy exposed by Windows. The interop
