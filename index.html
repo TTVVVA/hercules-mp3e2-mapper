@@ -9,11 +9,17 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <div>
-        <h1>Hercules MP3 e2 Mapper (Mixxx Schema)</h1>
+      <div class="brand-block">
+        <h1>Hercules Mapper</h1>
         <p>Hotspots alinhados ao esquema Mixxx com todos os controlos fisicos da MP3 e2.</p>
       </div>
-      <div class="topbar-actions">
+      <div class="status-rail" aria-label="Estado atual, só de leitura">
+        <div id="statusMidi" class="status-pill" data-state="neutral"><span class="status-dot"></span><span>MIDI</span><strong id="statusMidiValue">A detetar</strong></div>
+        <div id="statusCable" class="status-pill" data-state="neutral"><span class="status-dot"></span><span>CABLE</span><strong id="statusCableValue">Por confirmar</strong></div>
+        <div id="statusPhones" class="status-pill" data-state="neutral"><span class="status-dot"></span><span>Phones</span><strong id="statusPhonesValue">Por confirmar</strong></div>
+        <div id="statusDiscord" class="status-pill" data-state="neutral"><span class="status-dot"></span><span>Discord</span><strong id="statusDiscordValue">Por confirmar</strong></div>
+      </div>
+      <div class="topbar-actions utility-actions">
         <label class="file-btn">
           Trocar fundo
           <input id="imageInput" type="file" accept="image/*">
@@ -24,8 +30,15 @@
       </div>
     </header>
 
-    <main class="layout">
-      <section class="stage-panel">
+    <main class="layout" id="workspaceLayout">
+      <nav class="side-nav" aria-label="Navegação principal">
+        <button type="button" class="nav-item active" data-nav-target="mapper" aria-current="page">Mapear</button>
+        <button type="button" class="nav-item" data-nav-target="macros">Macros <span>Em breve</span></button>
+        <button type="button" class="nav-item" data-nav-target="profiles">Perfis <span>Em breve</span></button>
+        <button type="button" class="nav-item" data-nav-target="audio">Áudio</button>
+      </nav>
+
+      <section class="stage-panel mapper-panel">
         <div class="stage-toolbar">
           <button id="calibrateBtn" type="button">Calibracao exata: OFF</button>
           <button id="calPrevBtn" type="button">Anterior</button>
@@ -55,7 +68,7 @@
       </section>
 
       <aside class="sidebar">
-        <section class="card steps-card">
+        <section class="card steps-card mapper-only">
           <h2>Passos</h2>
           <ol class="steps-list">
             <li>A app abre com o esquema Mixxx da MP3 e2 e hotspots por botao/knob/fader.</li>
@@ -64,7 +77,7 @@
           </ol>
         </section>
 
-        <section class="card audio-router-card">
+        <section class="card audio-router-card audio-panel">
           <div class="card-row">
             <h2>Áudio independente</h2>
             <button id="refreshAudioDevicesBtn" type="button">Atualizar</button>
@@ -110,7 +123,19 @@
           </p>
         </section>
 
-        <section class="card">
+        <section class="card audio-overview-card">
+          <p class="eyebrow">Estado atual · só de leitura</p>
+          <div class="audio-overview-list">
+            <div><span>MIDI</span><strong id="audioOverviewMidi">A detetar</strong></div>
+            <div><span>Transmissão</span><strong id="audioOverviewCable">CABLE por confirmar</strong></div>
+            <div><span>Volume pessoal</span><strong id="audioOverviewVolume">75%</strong></div>
+            <div><span>Phones</span><strong id="audioOverviewPhones">A confirmar</strong></div>
+            <div><span>Discord</span><strong id="audioOverviewDiscord">A confirmar</strong></div>
+          </div>
+          <p class="overview-note">Este painel não altera nada. As ações do Windows continuam apenas nos botões à esquerda.</p>
+        </section>
+
+        <section class="card mapper-only">
           <h2>Controlo selecionado</h2>
           <div id="emptySelection" class="empty-selection">Clica num hotspot para configurar.</div>
           <form id="controlForm" class="control-form hidden">
@@ -242,7 +267,7 @@
           </form>
         </section>
 
-        <section class="card">
+        <section class="card mapper-only">
           <div class="card-row">
             <h2>Mapa de funções</h2>
             <input id="searchInput" type="search" placeholder="Pesquisar">
@@ -250,11 +275,18 @@
           <div id="controlList" class="control-list"></div>
         </section>
 
-        <section class="card">
+        <section class="card mapper-only">
           <h2>JSON rápido</h2>
           <pre id="jsonPreview" class="json-preview"></pre>
         </section>
       </aside>
+
+      <section id="futurePanel" class="card future-panel hidden" aria-live="polite">
+        <p class="eyebrow">Em preparação</p>
+        <h2 id="futurePanelTitle">Macros</h2>
+        <p id="futurePanelDescription">O editor de macros será adicionado numa fase própria, sem tocar na rota de áudio atual.</p>
+        <p class="muted">Por agora, continua a usar os mapeamentos existentes em <strong>Mapear</strong>.</p>
+      </section>
     </main>
   </div>
 
