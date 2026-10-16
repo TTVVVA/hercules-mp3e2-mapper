@@ -790,6 +790,17 @@ internal static class Program
 
     private static async Task<int> RunMonitorAsync(string[] args)
     {
+        // Fase 1: router WASAPI antigo bloqueado por defeito. A rota estavel e feita
+        // pelo Windows ("Ouvir este dispositivo"). Reativar so com HERCULES_ALLOW_LEGACY_ROUTER=1.
+        if (Environment.GetEnvironmentVariable("HERCULES_ALLOW_LEGACY_ROUTER") != "1")
+        {
+            return WriteJson(new Result
+            {
+                Ok = false,
+                Error = "O router WASAPI antigo esta desativado. A rota estavel e feita pelo Windows (Ouvir este dispositivo)."
+            }, 3);
+        }
+
         var sourceId = GetOption(args, "--source-id");
         var targetId = GetOption(args, "--target-id");
         var requestedVolume = ParseVolume(GetOption(args, "--volume")) ?? 0.75f;
