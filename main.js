@@ -246,7 +246,17 @@ function asBridgeResult(result) {
   };
 }
 
+// Fase 1: o router WASAPI antigo (comando "monitor" do helper) esta bloqueado.
+// A rota estavel e feita pelo Windows ("Ouvir este dispositivo" em CABLE Output).
+// So reativar com HERCULES_ALLOW_LEGACY_ROUTER=1 (uso de diagnostico, nunca por defeito).
+const LEGACY_ROUTER_ENABLED = process.env.HERCULES_ALLOW_LEGACY_ROUTER === "1";
+const LEGACY_ROUTER_BLOCKED_MESSAGE =
+  "O router WASAPI antigo esta desativado. A rota estavel e feita pelo Windows (Ouvir este dispositivo).";
+
 function startAudioRouter({ sourceId, targetId, volume }) {
+  if (!LEGACY_ROUTER_ENABLED) {
+    return Promise.resolve({ ok: false, blocked: true, error: LEGACY_ROUTER_BLOCKED_MESSAGE });
+  }
   const source = String(sourceId || "").trim();
   const target = String(targetId || "").trim();
   const normalizedVolume = Math.max(0, Math.min(1, Number(volume)));
