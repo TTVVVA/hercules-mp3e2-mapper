@@ -204,6 +204,24 @@ const DEFAULT_CONTROLS = [
 ];
 
 const elements = {
+  workspaceLayout: document.getElementById("workspaceLayout"),
+  navButtons: Array.from(document.querySelectorAll("[data-nav-target]")),
+  futurePanel: document.getElementById("futurePanel"),
+  futurePanelTitle: document.getElementById("futurePanelTitle"),
+  futurePanelDescription: document.getElementById("futurePanelDescription"),
+  statusMidi: document.getElementById("statusMidi"),
+  statusMidiValue: document.getElementById("statusMidiValue"),
+  statusCable: document.getElementById("statusCable"),
+  statusCableValue: document.getElementById("statusCableValue"),
+  statusPhones: document.getElementById("statusPhones"),
+  statusPhonesValue: document.getElementById("statusPhonesValue"),
+  statusDiscord: document.getElementById("statusDiscord"),
+  statusDiscordValue: document.getElementById("statusDiscordValue"),
+  audioOverviewMidi: document.getElementById("audioOverviewMidi"),
+  audioOverviewCable: document.getElementById("audioOverviewCable"),
+  audioOverviewVolume: document.getElementById("audioOverviewVolume"),
+  audioOverviewPhones: document.getElementById("audioOverviewPhones"),
+  audioOverviewDiscord: document.getElementById("audioOverviewDiscord"),
   imageInput: document.getElementById("imageInput"),
   importInput: document.getElementById("importInput"),
   toggleLayoutBtn: document.getElementById("toggleLayoutBtn"),
@@ -301,6 +319,7 @@ const runtime = {
 };
 
 let dragState = null;
+let activeView = "mapper";
 
 initialize();
 
@@ -310,6 +329,7 @@ function initialize() {
   applyPhotoMeta();
   applyDefaultImageIfNeeded();
   bindEvents();
+  setActiveView("mapper");
   renderAll();
   void refreshOpenApps({ silent: true });
   void initializeAudioRouter();
@@ -536,6 +556,99 @@ function isVirtualCableDevice(device) {
   return /vb-audio|cable in|cable output|virtual cable/i.test(String(device?.name || ""));
 }
 
+function isCableInputDevice(device) {
+  return /^cable (input|in)\b|vb-audio cable input/i.test(String(device?.name || ""));
+}
+
+function shortDeviceName(name, fallback = "A confirmar") {
+  const value = String(name || "").trim();
+  if (!value) return fallback;
+  if (/corsair/i.test(value)) return "Corsair";
+  if (/cable (input|in)\b|vb-audio/i.test(value)) return "CABLE";
+  return value.length > 20 ? `${value.slice(0, 19)}…` : value;
+}
+
+function setReadOnlyStatus(pill, valueElement, value, stateName = "neutral") {
+  if (pill) pill.dataset.state = stateName;
+  if (valueElement) valueElement.textContent = value;
+}
+
+function renderStatusOverview() {
+  const source = runtime.audioDevices.find((device) => device.id === state.audioRouting.sourceId);
+  const target = runtime.audioDevices.find((device) => device.id === state.audioRouting.targetId);
+  const sourceIsCable = isCableInputDevice(source);
+  const midiInput = Array.from(runtime.midiInputsBound.values())[0];
+  const midiReady = Boolean(runtime.midiConnected && runtime.midiInputsBound.size);
+  const phonesReady = Boolean(target);
+  const discordPrivate = Boolean(state.audioRouting.discordPrivateRoute && target);
+  const midiValue = midiReady ? "Ligado" : "A detetar";
+  const cableValue = sourceIsCable ? "100%" : "A confirmar";
+  const phonesValue = shortDeviceName(target?.name);
+  const discordValue = discordPrivate ? shortDeviceName(target?.name, "Privado") : "A confirmar";
+
+  setReadOnlyStatus(elements.statusMidi, elements.statusMidiValue, midiValue, midiReady ? "ok" : "warning");
+  setReadOnlyStatus(elements.statusCable, elements.statusCableValue, cableValue, sourceIsCable ? "ok" : "warning");
+  setReadOnlyStatus(elements.statusPhones, elements.statusPhonesValue, phonesValue, phonesReady ? "ok" : "warning");
+  setReadOnlyStatus(elements.statusDiscord, elements.statusDiscordValue, discordValue, discordPrivate ? "ok" : "warning");
+
+  if (elements.audioOverviewMidi) {
+    elements.audioOverviewMidi.textContent = midiReady
+      ? (midiInput?.name || "Controladora ligada")
+      : "A detetar controladora";
+  }
+  if (elements.audioOverviewCable) {
+    elements.audioOverviewCable.textContent = sourceIsCable
+      ? `${shortDeviceName(source?.name, "CABLE")} · 100%`
+      : "CABLE por confirmar";
+  }
+  if (elements.audioOverviewVolume) {
+    elements.audioOverviewVolume.textContent = `${Math.round(state.audioRouting.personalVolume * 100)}% só para si`;
+  }
+  if (elements.audioOverviewPhones) {
+    elements.audioOverviewPhones.textContent = target?.name || "Escolha os phones";
+  }
+  if (elements.audioOverviewDiscord) {
+    elements.audioOverviewDiscord.textContent = discordPrivate
+      ? `${shortDeviceName(target?.name)} · fora da partilha`
+      : "Rota privada por confirmar";
+  }
+}
+
+function setActiveView(view) {
+  const nextView = ["mapper", "audio", "macros", "profiles"].includes(view) ? view : "mapper";
+  activeView = nextView;
+  document.body.dataset.view = nextView;
+
+  for (const button of elements.navButtons) {
+    const selected = button.dataset.navTarget === nextView;
+    button.classList.toggle("active", selected);
+    if (selected) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
+  }
+
+  const futureContent = {
+    macros: {
+      title: "Macros",
+      description: "O editor de macros será construído numa fase própria: passos ordenados, pequenos atrasos e teste seguro, sem alterar a rota de áudio atual."
+    },
+    profiles: {
+      title: "Perfis",
+      description: "Os perfis serão adicionados numa fase própria com cópia de segurança, duplicação e importação/exportação dos mapeamentos."
+    }
+  };
+  const future = futureContent[nextView];
+  if (elements.futurePanel) elements.futurePanel.classList.toggle("hidden", !future);
+  if (future && elements.futurePanelTitle && elements.futurePanelDescription) {
+    elements.futurePanelTitle.textContent = future.title;
+    elements.futurePanelDescription.textContent = future.description;
+  }
+
+  renderStatusOverview();
+}
+
 function findPreferredAudioDeviceId(pattern, fallbackId = "", allowPhysicalFallback = true) {
   if (fallbackId && runtime.audioDevices.some((device) => device.id === fallbackId)) {
     return fallbackId;
@@ -617,6 +730,7 @@ function renderAudioRouter() {
   if (elements.stopAudioRouterBtn) {
     elements.stopAudioRouterBtn.hidden = true;
   }
+  renderStatusOverview();
 }
 
 async function initializeAudioRouter() {
@@ -722,6 +836,7 @@ function onAudioRoutingSelectionChanged() {
   state.audioRouting.sourceId = elements.audioSourceSelect?.value || "";
   state.audioRouting.targetId = elements.audioTargetSelect?.value || "";
   saveState();
+  renderStatusOverview();
   setAudioRouterStatus("Dispositivos guardados. Confirme no Windows: CABLE Output → Propriedades → Ouvir → Corsair.");
 }
 
@@ -959,10 +1074,13 @@ async function initializeMidiRuntime() {
     runtime.midiConnected = true;
     access.onstatechange = () => {
       bindMidiInputs();
+      renderStatusOverview();
     };
+    renderStatusOverview();
     console.log("MIDI pronto:", Array.from(access.inputs.values()).map((i) => i.name));
   } catch (error) {
     runtime.midiConnected = false;
+    renderStatusOverview();
     console.warn("Falha ao iniciar Web MIDI:", error);
   }
 }
@@ -988,6 +1106,7 @@ function bindMidiInputs() {
     input.onmidimessage = null;
     runtime.midiInputsBound.delete(id);
   }
+  renderStatusOverview();
 }
 
 function normalizeFaderMidiToUnit(rawValue) {
@@ -1218,6 +1337,10 @@ async function handleMappedButtonPress(controlId) {
 }
 
 function bindEvents() {
+  elements.navButtons.forEach((button) => {
+    button.addEventListener("click", () => setActiveView(button.dataset.navTarget));
+  });
+
   elements.imageInput.addEventListener("change", onImageSelected);
   elements.importInput.addEventListener("change", onImportJson);
 
@@ -1312,6 +1435,7 @@ function bindEvents() {
 
 function renderAll() {
   renderAudioRouter();
+  renderStatusOverview();
   renderUiToggles();
   renderCalibrationUi();
   renderOverlay();
