@@ -1111,7 +1111,10 @@ function bindMidiInputs() {
 
 function normalizeFaderMidiToUnit(rawValue) {
   const value = clampNumber(rawValue, 0, 127, 0);
-  const lowerDeadZone = 10;
+  // A zona morta anterior equivalia a cerca de 15% do curso MIDI e podia
+  // fazer os faders A/B chegarem ao mute demasiado cedo. Mantemos só o
+  // mínimo necessário para o zero físico do controlador.
+  const lowerDeadZone = 1;
   const upperDeadZone = 3;
   const min = lowerDeadZone;
   const max = 127 - upperDeadZone;
@@ -1119,13 +1122,7 @@ function normalizeFaderMidiToUnit(rawValue) {
   if (value <= min) return 0;
   if (value >= max) return 1;
 
-  const normalized = clampNumber((value - min) / (max - min), 0, 1, 0);
-
-  // Snap near the extremes to compensate for controllers that never reach exact 0/127.
-  if (normalized <= 0.08) return 0;
-  if (normalized >= 0.99) return 1;
-
-  return normalized;
+  return clampNumber((value - min) / (max - min), 0, 1, 0);
 }
 
 function getMidiCcFromBinding(binding) {
