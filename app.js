@@ -303,6 +303,7 @@ const runtime = {
   midiAccess: null,
   midiConnected: false,
   midiInputsBound: new Map(),
+  midiReconnectTimer: null,
   appVolumeDispatch: new Map(),
   appVolumeErrorCache: new Map(),
   audioDevices: [],
@@ -1068,26 +1069,58 @@ async function initializeMidiRuntime() {
   }
 
   try {
-    const access = await navigator.requestMIDIAccess({ sysex: false });
+    const access = runtime.midiAccess || await navigator.requestMIDIAccess({ sysex: false });
     runtime.midiAccess = access;
-    bindMidiInputs();
-    runtime.midiConnected = true;
+    const inputCount = bindMidiInputs();
+    runtime.midiConnected = inputCount > 0;
     access.onstatechange = () => {
-      bindMidiInputs();
+      const nextInputCount = bindMidiInputs();
+      runtime.midiConnected = nextInputCount > 0;
+      if (nextInputCount > 0) {
+        stopMidiReconnectRetry();
+      } else {
+        startMidiReconnectRetry();
+      }
       renderStatusOverview();
     };
+    if (inputCount > 0) {
+      stopMidiReconnectRetry();
+    } else {
+      startMidiReconnectRetry();
+    }
     renderStatusOverview();
     console.log("MIDI pronto:", Array.from(access.inputs.values()).map((i) => i.name));
   } catch (error) {
     runtime.midiConnected = false;
+    startMidiReconnectRetry();
     renderStatusOverview();
     console.warn("Falha ao iniciar Web MIDI:", error);
   }
 }
 
+function stopMidiReconnectRetry() {
+  if (!runtime.midiReconnectTimer) return;
+  clearInterval(runtime.midiReconnectTimer);
+  runtime.midiReconnectTimer = null;
+}
+
+function startMidiReconnectRetry() {
+  if (runtime.midiReconnectTimer) return;
+  runtime.midiReconnectTimer = setInterval(() => {
+    if (!runtime.midiAccess) {
+      void initializeMidiRuntime();
+      return;
+    }
+    const inputCount = bindMidiInputs();
+    runtime.midiConnected = inputCount > 0;
+    if (inputCount > 0) stopMidiReconnectRetry();
+    renderStatusOverview();
+  }, 1500);
+}
+
 function bindMidiInputs() {
   const access = runtime.midiAccess;
-  if (!access) return;
+  if (!access) return 0;
 
   const activeIds = new Set();
   for (const input of access.inputs.values()) {
@@ -1160,6 +1193,7 @@ function renderMidiLearnUi(control = getSelectedControl()) {
   } else {
     elements.midiLearnHint.textContent = "Seleciona um controlo e carrega aqui; depois roda o knob físico.";
   }
+  return runtime.midiInputsBound.size;
 }
 
 function startMidiLearn() {
