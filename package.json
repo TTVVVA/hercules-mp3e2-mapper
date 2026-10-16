@@ -1,0 +1,48 @@
+{
+  "name": "hercules-mp3e2-mapper",
+  "version": "1.0.14",
+  "description": "UI desktop para mapear os botoes da Hercules DJ Control MP3 e2",
+  "main": "main.js",
+  "author": "Codex",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build:helper": "dotnet publish tools\\AppVolumeBridge\\AppVolumeBridge.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o bin\\AppVolumeBridge",
+    "dist": "npm run build:helper && electron-builder --win portable",
+    "dist:installer": "npm run build:helper && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^37.3.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.tiago.herculesmp3e2mapper",
+    "productName": "Hercules MP3e2 Mapper",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "styles.css",
+      "app.js",
+      "THIRD_PARTY_NOTICES.md",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "bin/AppVolumeBridge",
+        "to": "bin/AppVolumeBridge"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "Hercules-MP3e2-Mapper-${version}.exe"
+    }
+  }
+}

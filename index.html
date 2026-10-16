@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hercules Mapper UI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Hercules MP3 e2 Mapper (Mixxx Schema)</h1>
+        <p>Hotspots alinhados ao esquema Mixxx com todos os controlos fisicos da MP3 e2.</p>
+      </div>
+      <div class="topbar-actions">
+        <label class="file-btn">
+          Trocar fundo
+          <input id="imageInput" type="file" accept="image/*">
+        </label>
+        <button id="toggleLayoutBtn" type="button">Modo layout: OFF</button>
+        <button id="toggleLabelsBtn" type="button">Etiquetas: Auto</button>
+        <button id="addControlBtn" type="button">+ Controlo</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="stage-panel">
+        <div class="stage-toolbar">
+          <button id="calibrateBtn" type="button">Calibracao exata: OFF</button>
+          <button id="calPrevBtn" type="button">Anterior</button>
+          <button id="calNextBtn" type="button">Seguinte</button>
+          <button id="resetMappingsBtn" type="button">Limpar funções</button>
+          <button id="resetLayoutBtn" type="button">Reset layout</button>
+          <button id="exportBtn" type="button">Exportar JSON</button>
+          <label class="file-btn secondary">
+            Importar JSON
+            <input id="importInput" type="file" accept="application/json,.json">
+          </label>
+        </div>
+
+        <div class="stage-wrapper" id="stageWrapper">
+          <img id="controllerImage" alt="Foto da controladora">
+          <div id="placeholder" class="placeholder">
+            <strong>A carregar imagem da controladora...</strong>
+            <span>Se nao aparecer, usa "Trocar fundo".</span>
+          </div>
+          <div id="overlay" class="overlay" aria-label="Hotspots dos controlos"></div>
+          <div id="stageStatus" class="stage-status" aria-live="polite"></div>
+        </div>
+
+        <p class="hint">
+          Dica: no <strong>Modo layout</strong>, arrasta os pontos para alinhar com a foto. A configuração fica guardada no browser.
+        </p>
+      </section>
+
+      <aside class="sidebar">
+        <section class="card steps-card">
+          <h2>Passos</h2>
+          <ol class="steps-list">
+            <li>A app abre com o esquema Mixxx da MP3 e2 e hotspots por botao/knob/fader.</li>
+            <li>Clica no hotspot certo e configura a funcao.</li>
+            <li>Se quiseres, usa "Calibracao exata" para ajustar qualquer controlo.</li>
+          </ol>
+        </section>
+
+        <section class="card audio-router-card">
+          <div class="card-row">
+            <h2>Áudio independente</h2>
+            <button id="refreshAudioDevicesBtn" type="button">Atualizar</button>
+          </div>
+          <p class="muted">
+            A transmissão CABLE fica a 100%. O Windows faz a cópia estável para os auscultadores; esta app ajusta apenas o volume que ouve.
+          </p>
+          <label>
+            Fonte da transmissão (VB-CABLE)
+            <select id="audioSourceSelect">
+              <option value="">A carregar dispositivos...</option>
+            </select>
+          </label>
+          <label>
+            Auscultadores pessoais
+            <select id="audioTargetSelect">
+              <option value="">A carregar dispositivos...</option>
+            </select>
+          </label>
+          <label>
+            Volume CABLE só para si
+            <div class="volume-control-row">
+              <input id="personalVolumeRange" type="range" min="0" max="100" value="75">
+              <output id="personalVolumeValue">75%</output>
+            </div>
+          </label>
+          <div class="router-actions">
+            <button id="setCableDefaultBtn" type="button" class="secondary-btn">Usar CABLE como saída geral</button>
+            <button id="startAudioRouterBtn" type="button">Aplicar volume nos auscultadores</button>
+            <button id="stopAudioRouterBtn" type="button" class="secondary-btn" hidden>Parar</button>
+          </div>
+          <div class="router-actions">
+            <button id="enableCableListenBtn" type="button">Escutar CABLE nos phones</button>
+            <button id="disableCableListenBtn" type="button" class="secondary-btn">Parar de escutar CABLE</button>
+          </div>
+          <div class="router-actions">
+            <button id="routeDiscordPrivateBtn" type="button" class="secondary-btn">Discord -&gt; auscultadores privados</button>
+            <button id="clearDiscordPrivateBtn" type="button" class="secondary-btn">Discord seguir saida geral</button>
+          </div>
+          <div id="audioRouterStatus" class="router-status" aria-live="polite">A preparar os dispositivos de áudio…</div>
+          <p class="muted">
+            Primeiro use <strong>Usar CABLE como saída geral</strong>. Depois, no Windows: <strong>Som &gt; Mais definições de som &gt; Gravação &gt; CABLE Output &gt; Propriedades &gt; Ouvir</strong>, ative <strong>Ouvir este dispositivo</strong> e escolha os Corsair. O Discord deve usar o botão privado acima. No Parsec, desligue <strong>Echo Cancelling</strong>. Não inicie uma segunda rota de monitorização.
+          </p>
+        </section>
+
+        <section class="card">
+          <h2>Controlo selecionado</h2>
+          <div id="emptySelection" class="empty-selection">Clica num hotspot para configurar.</div>
+          <form id="controlForm" class="control-form hidden">
+            <input type="hidden" id="controlId">
+
+            <label>
+              Nome
+              <input id="controlName" type="text" placeholder="Ex.: Play A">
+            </label>
+
+            <label>
+              Tipo
+              <select id="controlType">
+                <option value="button">Botão</option>
+                <option value="knob">Knob</option>
+                <option value="fader">Fader</option>
+                <option value="jog">Jog</option>
+              </select>
+            </label>
+
+            <div class="grid-2">
+              <label>
+                X (%)
+                <input id="controlX" type="number" min="0" max="100" step="0.1">
+              </label>
+              <label>
+                Y (%)
+                <input id="controlY" type="number" min="0" max="100" step="0.1">
+              </label>
+            </div>
+
+            <label>
+              Tamanho do hotspot (%)
+              <input id="controlSize" type="range" min="1" max="10" step="0.2">
+              <span id="controlSizeValue" class="muted"></span>
+            </label>
+
+            <label>
+              Função
+              <select id="actionType">
+                <option value="none">Sem função</option>
+                <option value="app_volume">Windows: Volume de app</option>
+                <option value="personal_volume">Áudio: Volume CABLE só para mim (fader/knob)</option>
+                <option value="personal_volume_relative">Áudio: Volume CABLE só para mim (knob rotativo)</option>
+                <option value="personal_volume_up">Áudio: Aumentar CABLE só para mim (+5%)</option>
+                <option value="personal_volume_down">Áudio: Baixar CABLE só para mim (-5%)</option>
+                <option value="media_play_pause">Windows: Media Play/Pause</option>
+                <option value="media_prev">Windows: Media Previous</option>
+                <option value="media_next">Windows: Media Next</option>
+                <option value="voice_preset">Voz: Preset</option>
+                <option value="obs_scene">OBS: Trocar cena</option>
+                <option value="obs_mute_mic">OBS: Mute mic</option>
+                <option value="obs_toggle_source">OBS: Mostrar/ocultar fonte</option>
+                <option value="obs_stream_toggle">OBS: Iniciar/parar stream</option>
+                <option value="obs_record_toggle">OBS: Iniciar/parar gravação</option>
+                <option value="hotkey">Atalho de teclado</option>
+                <option value="command">Comando</option>
+                <option value="url">Abrir URL</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+
+            <label id="actionValueRow">
+              Valor da função
+              <input id="actionValue" type="text" placeholder="Ex.: Ctrl+Shift+1 / Cena 1 / obs://...">
+            </label>
+
+            <div id="appTargetRow" class="app-target-row hidden">
+              <label>
+                App aberta para controlar o som
+                <div class="grid-app-picker">
+                  <select id="appTargetSelect">
+                    <option value="">Seleciona uma app aberta...</option>
+                  </select>
+                  <button id="refreshAppsBtn" type="button">Atualizar apps</button>
+                </div>
+              </label>
+              <div id="appTargetHint" class="muted">
+                Usa isto no Fader A/B para escolher a app cujo volume queres controlar.
+              </div>
+            </div>
+
+            <div id="personalOutputRow" class="app-target-row hidden">
+              <label>
+                Som que este controlo altera
+                <select id="personalOutputTargetSelect">
+                  <option value="">A carregar auscultadores...</option>
+                </select>
+              </label>
+              <div id="personalOutputHint" class="muted">
+                Escolhe os teus phones. Isto não altera o volume da partilha.
+              </div>
+            </div>
+
+            <div id="voicePresetRow" class="app-target-row hidden">
+              <label>
+                Preset de voz
+                <select id="voicePresetSelect">
+                  <option value="Normal">Normal</option>
+                  <option value="Grave">Grave</option>
+                  <option value="Aguda">Aguda</option>
+                  <option value="Robo">Robo</option>
+                  <option value="Radio">Radio</option>
+                  <option value="Eco">Eco</option>
+                </select>
+              </label>
+              <div class="muted">
+                Troca o preset de voz na nossa app (pronto para ligar ao motor de efeitos depois).
+              </div>
+            </div>
+
+            <label>
+              Descrição / notas
+              <textarea id="actionNotes" rows="3" placeholder="Opcional"></textarea>
+            </label>
+
+            <label>
+              MIDI (manual, opcional)
+              <input id="midiBinding" type="text" placeholder="Ex.: ch1 note 36 / cc 12">
+            </label>
+            <div class="app-target-row">
+              <button id="midiLearnBtn" type="button" class="secondary-btn">Detetar knob / fader</button>
+              <div id="midiLearnHint" class="muted">Seleciona um controlo e carrega aqui; depois roda o knob físico.</div>
+            </div>
+
+            <div class="form-actions">
+              <button id="deleteControlBtn" type="button" class="danger">Apagar controlo</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="card-row">
+            <h2>Mapa de funções</h2>
+            <input id="searchInput" type="search" placeholder="Pesquisar">
+          </div>
+          <div id="controlList" class="control-list"></div>
+        </section>
+
+        <section class="card">
+          <h2>JSON rápido</h2>
+          <pre id="jsonPreview" class="json-preview"></pre>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <template id="controlItemTemplate">
+    <button type="button" class="control-item">
+      <span class="control-item-name"></span>
+      <span class="control-item-meta"></span>
+    </button>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

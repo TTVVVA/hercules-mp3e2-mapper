@@ -1,0 +1,31 @@
+# Dependencies and package-manager caches
+node_modules/
+.npm-cache/
+
+# Build artifacts
+bin/
+dist/
+tools/**/bin/
+tools/**/obj/
+
+# IDE and operating-system files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+Thumbs.db
+Desktop.ini
+
+# Logs and temporary checks
+*.log
+npm-debug.log*
+tmp-electron-check.js
+
+# Local review exports and downloaded reference pages
+CODIGO_COMPLETO_PARA_REVISAO.txt
+bh.html
+ddg.html
+bing-images*.html
+support-page*.html
+assets/mixxx/
