@@ -357,6 +357,7 @@ const runtime = {
   discordRoutingBusy: false,
   personalVolumeDispatch: null,
   personalVolumeReading: false,
+  statusOverlayDispatch: { pending: null, queued: false },
   buttonActionCooldown: new Map(),
   midiLearnControlId: null,
   lastMidiControlId: null,
@@ -696,7 +697,7 @@ function renderLiveStatusCard() {
     ? Math.round(runtime.liveStatus.discordVolume * 100)
     : null;
   const phonesPercent = Math.round(state.audioRouting.personalVolume * 100);
-  void publishLiveStatusOverlay({
+  publishLiveStatusOverlay({
     discordPercent,
     phonesPercent,
     micMuted: runtime.liveStatus.micMuted,
@@ -706,13 +707,29 @@ function renderLiveStatusCard() {
   });
 }
 
-async function publishLiveStatusOverlay(status) {
-  if (!window.electronDesktop || typeof window.electronDesktop.updateStatusOverlay !== "function") return;
-  try {
-    await window.electronDesktop.updateStatusOverlay(status);
-  } catch {
-    // O painel flutuante é apenas leitura; uma falha não pode afetar o áudio.
-  }
+function publishLiveStatusOverlay(status) {
+  if (!window.electronDesktop) return;
+
+  const dispatch = runtime.statusOverlayDispatch;
+  dispatch.pending = status;
+  if (dispatch.queued) return;
+  dispatch.queued = true;
+
+  requestAnimationFrame(() => {
+    dispatch.queued = false;
+    const latest = dispatch.pending;
+    dispatch.pending = null;
+    if (!latest) return;
+
+    if (typeof window.electronDesktop.pushStatusOverlay === "function") {
+      window.electronDesktop.pushStatusOverlay(latest);
+      return;
+    }
+
+    if (typeof window.electronDesktop.updateStatusOverlay === "function") {
+      void window.electronDesktop.updateStatusOverlay(latest);
+    }
+  });
 }
 
 function showLiveStatusCard(update = {}) {
@@ -1056,7 +1073,7 @@ function queuePersonalVolumeUpdate(volume) {
   dispatch.timer = setTimeout(() => {
     dispatch.timer = null;
     void flushPersonalVolumeUpdate();
-  }, 30);
+  }, 8);
 }
 
 async function flushPersonalVolumeUpdate() {
@@ -1458,6 +1475,9 @@ function onMidiMessage(event) {
       if (isRelativeAppVolumeControl(control)) {
         queueRelativeAppVolumeUpdate(controlId, processName, rawValue);
       } else {
+        if (isDiscordProcessName(processName)) {
+          showLiveStatusCard({ discordVolume: normalized });
+        }
         queueAppVolumeUpdate(controlId, processName, normalized);
       }
       return;
@@ -1475,6 +1495,7 @@ function onMidiMessage(event) {
       if (elements.personalVolumeValue) elements.personalVolumeValue.textContent = `${Math.round(normalized * 100)}%`;
       saveState();
       queuePersonalVolumeUpdate(normalized);
+      showLiveStatusCard();
     }
     return;
   }
@@ -1493,6 +1514,9 @@ function queueAppVolumeUpdate(controlId, processName, volume) {
   const current = runtime.appVolumeDispatch.get(key) || {};
   current.processName = processName;
   current.volume = volume;
+  if (isDiscordProcessName(processName)) {
+    showLiveStatusCard({ discordVolume: volume });
+  }
   if (current.timer) {
     clearTimeout(current.timer);
   }
@@ -1558,6 +1582,12 @@ function queueRelativeAppVolumeUpdate(controlId, processName, rawValue) {
 
   entry.pendingDelta = clampNumber(entry.pendingDelta + (steps * RELATIVE_APP_VOLUME_STEP), -0.5, 0.5, 0);
   runtime.relativeAppVolumeState.set(controlId, entry);
+  if (isDiscordProcessName(processName)) {
+    const knownVolume = Number.isFinite(entry.volume) ? entry.volume : runtime.liveStatus.discordVolume;
+    if (Number.isFinite(knownVolume)) {
+      showLiveStatusCard({ discordVolume: clampNumber(knownVolume + entry.pendingDelta, 0, 1, knownVolume) });
+    }
+  }
   if (!entry.running) {
     void flushRelativeAppVolumeUpdate(controlId);
   }

@@ -742,7 +742,7 @@ handleIpc("desktop:send-hotkey", async (_event, payload) => {
   }
 });
 
-handleIpc("desktop:update-status-overlay", async (_event, payload) => {
+function updateStatusOverlayState(payload) {
   const percent = (value) => Number.isFinite(Number(value)) ? Math.max(0, Math.min(100, Math.round(Number(value)))) : null;
   statusOverlayState = {
     discordPercent: percent(payload?.discordPercent),
@@ -754,7 +754,16 @@ handleIpc("desktop:update-status-overlay", async (_event, payload) => {
     locked: statusOverlayPreferences.locked
   };
   sendStatusOverlayState();
+}
+
+handleIpc("desktop:update-status-overlay", async (_event, payload) => {
+  updateStatusOverlayState(payload);
   return { ok: true, locked: statusOverlayPreferences.locked };
+});
+
+ipcMain.on("desktop:push-status-overlay", (event, payload) => {
+  if (!isTrustedIpcSender(event)) return;
+  updateStatusOverlayState(payload);
 });
 
 ipcMain.on("status-overlay:toggle-lock", (event) => {
