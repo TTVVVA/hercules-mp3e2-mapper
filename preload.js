@@ -24,5 +24,6 @@ contextBridge.exposeInMainWorld("electronDesktop", {
   mediaPlayPause: () => ipcRenderer.invoke("desktop:media-play-pause"),
   mediaPrev: () => ipcRenderer.invoke("desktop:media-prev"),
   mediaNext: () => ipcRenderer.invoke("desktop:media-next"),
+  updateStatusOverlay: (status) => ipcRenderer.invoke("desktop:update-status-overlay", status),
   sendHotkey: (keys) => ipcRenderer.invoke("desktop:send-hotkey", { keys })
 });

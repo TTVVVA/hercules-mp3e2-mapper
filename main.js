@@ -10,6 +10,19 @@ app.commandLine.appendSwitch("enable-blink-features", "WebMidi");
 let audioRouterProcess = null;
 let hotkeyServerProcess = null;
 let mainWindow = null;
+let statusOverlayWindow = null;
+let appIsQuitting = false;
+let overlaySaveTimer = null;
+let statusOverlayPreferences = { x: null, y: null, locked: false };
+let statusOverlayState = {
+  discordPercent: null,
+  phonesPercent: 75,
+  micMuted: null,
+  trackLabel: "Media",
+  trackTitle: "Nenhuma música detetada",
+  trackDetail: "Usa Play/Next na Hercules",
+  locked: false
+};
 const HOTKEY_PIPE_PATH = "\\\\.\\pipe\\HerculesMapperHotkeyV1";
 
 function isTrustedIpcSender(event) {
@@ -64,6 +77,106 @@ function createMainWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    if (!appIsQuitting) app.quit();
+  });
+}
+
+function getStatusOverlayPreferencesPath() {
+  return path.join(app.getPath("userData"), "status-overlay.json");
+}
+
+function loadStatusOverlayPreferences() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getStatusOverlayPreferencesPath(), "utf8"));
+    statusOverlayPreferences = {
+      x: Number.isInteger(parsed?.x) ? parsed.x : null,
+      y: Number.isInteger(parsed?.y) ? parsed.y : null,
+      locked: Boolean(parsed?.locked)
+    };
+  } catch {
+    statusOverlayPreferences = { x: null, y: null, locked: false };
+  }
+  statusOverlayState.locked = statusOverlayPreferences.locked;
+}
+
+function saveStatusOverlayPreferences() {
+  clearTimeout(overlaySaveTimer);
+  overlaySaveTimer = setTimeout(() => {
+    try {
+      fs.writeFileSync(getStatusOverlayPreferencesPath(), JSON.stringify(statusOverlayPreferences));
+    } catch {
+      // A posição é uma conveniência; nunca pode impedir a abertura da app.
+    }
+  }, 180);
+}
+
+function sendStatusOverlayState() {
+  if (!statusOverlayWindow || statusOverlayWindow.isDestroyed()) return;
+  statusOverlayWindow.webContents.send("status-overlay:state", statusOverlayState);
+}
+
+function setStatusOverlayLocked(locked) {
+  statusOverlayPreferences.locked = Boolean(locked);
+  statusOverlayState.locked = statusOverlayPreferences.locked;
+  statusOverlayWindow?.setMovable(!statusOverlayPreferences.locked);
+  saveStatusOverlayPreferences();
+  sendStatusOverlayState();
+}
+
+function createStatusOverlayWindow() {
+  const bounds = {};
+  if (Number.isInteger(statusOverlayPreferences.x)) bounds.x = statusOverlayPreferences.x;
+  if (Number.isInteger(statusOverlayPreferences.y)) bounds.y = statusOverlayPreferences.y;
+
+  statusOverlayWindow = new BrowserWindow({
+    width: 324,
+    height: 292,
+    minWidth: 324,
+    minHeight: 292,
+    maxWidth: 324,
+    maxHeight: 292,
+    ...bounds,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, "overlay-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+
+  statusOverlayWindow.setAlwaysOnTop(true, "screen-saver");
+  statusOverlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  statusOverlayWindow.setMovable(!statusOverlayPreferences.locked);
+  statusOverlayWindow.loadFile(path.join(__dirname, "overlay.html"));
+  statusOverlayWindow.once("ready-to-show", () => {
+    statusOverlayWindow?.showInactive();
+    sendStatusOverlayState();
+  });
+  statusOverlayWindow.on("move", () => {
+    if (!statusOverlayWindow || statusOverlayWindow.isDestroyed()) return;
+    const [x, y] = statusOverlayWindow.getPosition();
+    statusOverlayPreferences.x = x;
+    statusOverlayPreferences.y = y;
+    saveStatusOverlayPreferences();
+  });
+  statusOverlayWindow.on("close", (event) => {
+    if (!appIsQuitting) {
+      event.preventDefault();
+      statusOverlayWindow?.showInactive();
+    }
+  });
+  statusOverlayWindow.on("closed", () => {
+    statusOverlayWindow = null;
   });
 }
 
@@ -616,8 +729,30 @@ handleIpc("desktop:send-hotkey", async (_event, payload) => {
   }
 });
 
+handleIpc("desktop:update-status-overlay", async (_event, payload) => {
+  const percent = (value) => Number.isFinite(Number(value)) ? Math.max(0, Math.min(100, Math.round(Number(value)))) : null;
+  statusOverlayState = {
+    discordPercent: percent(payload?.discordPercent),
+    phonesPercent: percent(payload?.phonesPercent) ?? statusOverlayState.phonesPercent,
+    micMuted: typeof payload?.micMuted === "boolean" ? payload.micMuted : null,
+    trackLabel: String(payload?.trackLabel || "Media").slice(0, 24),
+    trackTitle: String(payload?.trackTitle || "Nenhuma música detetada").slice(0, 80),
+    trackDetail: String(payload?.trackDetail || "Usa Play/Next na Hercules").slice(0, 90),
+    locked: statusOverlayPreferences.locked
+  };
+  sendStatusOverlayState();
+  return { ok: true, locked: statusOverlayPreferences.locked };
+});
+
+ipcMain.on("status-overlay:toggle-lock", (event) => {
+  if (event.sender !== statusOverlayWindow?.webContents) return;
+  setStatusOverlayLocked(!statusOverlayPreferences.locked);
+});
+
 app.whenReady().then(() => {
   ensureHotkeyServer();
+  loadStatusOverlayPreferences();
+  createStatusOverlayWindow();
   createMainWindow();
 
   app.on("activate", () => {
@@ -628,6 +763,8 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", () => {
+  appIsQuitting = true;
+  clearTimeout(overlaySaveTimer);
   if (hotkeyServerProcess && !hotkeyServerProcess.killed) {
     hotkeyServerProcess.kill();
   }

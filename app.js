@@ -258,15 +258,6 @@ const elements = {
   statusPhonesValue: document.getElementById("statusPhonesValue"),
   statusDiscord: document.getElementById("statusDiscord"),
   statusDiscordValue: document.getElementById("statusDiscordValue"),
-  liveStatusCard: document.getElementById("liveStatusCard"),
-  liveDiscordValue: document.getElementById("liveDiscordValue"),
-  liveDiscordFill: document.getElementById("liveDiscordFill"),
-  livePhonesValue: document.getElementById("livePhonesValue"),
-  livePhonesFill: document.getElementById("livePhonesFill"),
-  liveMicValue: document.getElementById("liveMicValue"),
-  liveTrackLabel: document.getElementById("liveTrackLabel"),
-  liveTrackTitle: document.getElementById("liveTrackTitle"),
-  liveTrackDetail: document.getElementById("liveTrackDetail"),
   audioOverviewMidi: document.getElementById("audioOverviewMidi"),
   audioOverviewCable: document.getElementById("audioOverviewCable"),
   audioOverviewVolume: document.getElementById("audioOverviewVolume"),
@@ -375,8 +366,7 @@ const runtime = {
     micMuted: null,
     trackLabel: "Media",
     trackTitle: "Nenhuma música detetada",
-    trackDetail: "Usa Play/Next na Hercules",
-    hideTimer: null
+    trackDetail: "Usa Play/Next na Hercules"
   }
 };
 
@@ -694,48 +684,32 @@ function renderStatusOverview() {
 }
 
 function renderLiveStatusCard() {
-  if (!elements.liveStatusCard) return;
-
   const discordPercent = Number.isFinite(runtime.liveStatus.discordVolume)
     ? Math.round(runtime.liveStatus.discordVolume * 100)
     : null;
   const phonesPercent = Math.round(state.audioRouting.personalVolume * 100);
-  const micMuted = runtime.liveStatus.micMuted;
-
-  if (elements.liveDiscordValue) {
-    elements.liveDiscordValue.textContent = discordPercent === null ? "--%" : `${discordPercent}%`;
-  }
-  if (elements.liveDiscordFill) {
-    elements.liveDiscordFill.style.width = `${discordPercent ?? 0}%`;
-  }
-  if (elements.livePhonesValue) {
-    elements.livePhonesValue.textContent = `${phonesPercent}%`;
-  }
-  if (elements.livePhonesFill) {
-    elements.livePhonesFill.style.width = `${phonesPercent}%`;
-  }
-  if (elements.liveMicValue) {
-    elements.liveMicValue.textContent = micMuted === null ? "---" : (micMuted ? "MUTE" : "LIVE");
-  }
-  elements.liveStatusCard.classList.toggle("is-mic-muted", micMuted === true);
-  elements.liveStatusCard.classList.toggle("is-mic-live", micMuted === false);
-
-  if (elements.liveTrackLabel) elements.liveTrackLabel.textContent = runtime.liveStatus.trackLabel;
-  if (elements.liveTrackTitle) elements.liveTrackTitle.textContent = runtime.liveStatus.trackTitle;
-  if (elements.liveTrackDetail) elements.liveTrackDetail.textContent = runtime.liveStatus.trackDetail;
+  void publishLiveStatusOverlay({
+    discordPercent,
+    phonesPercent,
+    micMuted: runtime.liveStatus.micMuted,
+    trackLabel: runtime.liveStatus.trackLabel,
+    trackTitle: runtime.liveStatus.trackTitle,
+    trackDetail: runtime.liveStatus.trackDetail
+  });
 }
 
-function showLiveStatusCard(update = {}, duration = 4200) {
+async function publishLiveStatusOverlay(status) {
+  if (!window.electronDesktop || typeof window.electronDesktop.updateStatusOverlay !== "function") return;
+  try {
+    await window.electronDesktop.updateStatusOverlay(status);
+  } catch {
+    // O painel flutuante é apenas leitura; uma falha não pode afetar o áudio.
+  }
+}
+
+function showLiveStatusCard(update = {}) {
   Object.assign(runtime.liveStatus, update);
   renderLiveStatusCard();
-  if (!elements.liveStatusCard) return;
-
-  elements.liveStatusCard.classList.add("is-visible");
-  if (runtime.liveStatus.hideTimer) clearTimeout(runtime.liveStatus.hideTimer);
-  runtime.liveStatus.hideTimer = setTimeout(() => {
-    elements.liveStatusCard?.classList.remove("is-visible");
-    runtime.liveStatus.hideTimer = null;
-  }, duration);
 }
 
 async function refreshLiveDiscordStatus() {

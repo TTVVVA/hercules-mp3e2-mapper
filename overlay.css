@@ -1,0 +1,41 @@
+:root { color-scheme: dark; font-family: "Segoe UI", Arial, sans-serif; }
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+body { padding: 3px; }
+
+.status-card {
+  width: 318px;
+  min-height: 286px;
+  padding: 13px 18px 14px;
+  border: 2px solid #5ca9ff;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(32, 47, 66, 0.97), rgba(13, 17, 25, 0.98));
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.58), inset 0 1px rgba(255, 255, 255, 0.12);
+  color: #edf4ff;
+}
+
+.drag-bar { display: flex; align-items: center; justify-content: space-between; min-height: 24px; -webkit-app-region: drag; }
+.drag-bar p { margin: 0; color: #b8cbe5; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.06em; }
+#lockButton { width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #dbeaff; cursor: pointer; font-size: 15px; -webkit-app-region: no-drag; }
+#lockButton:hover { background: rgba(255,255,255,0.1); }
+.status-card.is-locked .drag-bar { -webkit-app-region: no-drag; }
+
+.status-row { display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 12px; margin: 11px 0; }
+.status-icon { width: 38px; height: 38px; fill: none; stroke: #e9f1fb; stroke-linecap: round; stroke-linejoin: round; stroke-width: 4; }
+.status-discord { fill: #e9f1fb; stroke: #18202c; stroke-width: 3; }
+.status-discord path:last-child { fill: none; stroke: #18202c; }
+.status-content p, .mic-row p { margin: 0; color: #e8eef7; font-size: 1.05rem; font-weight: 650; }
+.status-content strong, .mic-row strong { color: #b9d9ff; }
+.status-meter { height: 6px; margin-top: 6px; overflow: hidden; border-radius: 999px; background: rgba(3, 7, 13, 0.64); }
+.status-meter span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #cce8ff, #95c7f7); box-shadow: 0 0 12px rgba(142, 199, 255, 0.45); transition: width 120ms linear; }
+.mic-row { margin-top: 15px; margin-bottom: 15px; }
+.status-card.is-mic-muted .mic-row, .status-card.is-mic-muted .mic-row strong { color: #ff7676; }
+.status-card.is-mic-muted .mic-row .status-icon { stroke: #ff6d6d; }
+.status-card.is-mic-live .mic-row strong { color: #73ffaf; }
+
+.now-playing { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border: 1px solid rgba(117, 156, 203, 0.18); border-radius: 10px; background: rgba(4, 9, 15, 0.42); }
+.next-icon { width: 26px; height: 26px; fill: #dcebff; }
+.now-playing span, .now-playing strong, .now-playing small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-playing span { color: #9ab4d2; font-size: 0.7rem; }
+.now-playing strong { color: #edf4ff; font-size: 0.78rem; }
+.now-playing small { color: #a8bad0; font-size: 0.68rem; }

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Status Overlay</title>
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+  <aside id="statusCard" class="status-card" aria-live="polite" aria-label="Atualização de estado">
+    <header class="drag-bar">
+      <p>STATUS UPDATE</p>
+      <button id="lockButton" type="button" title="Bloquear posição" aria-label="Bloquear posição">🔓</button>
+    </header>
+
+    <div class="status-row">
+      <svg class="status-icon status-discord" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M14 16c10-7 26-7 36 0 5 8 7 17 6 27-7 6-15 9-24 9s-17-3-24-9c-1-10 1-19 6-27Z"></path>
+        <path d="M22 44c3 3 7 4 10 4s7-1 10-4M24 28h.1M40 28h.1"></path>
+      </svg>
+      <div class="status-content">
+        <p>Discord: <strong id="overlayDiscordValue">--%</strong></p>
+        <div class="status-meter"><span id="overlayDiscordFill"></span></div>
+      </div>
+    </div>
+
+    <div class="status-row">
+      <svg class="status-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M12 38v-8a20 20 0 0 1 40 0v8"></path>
+        <path d="M12 34H8v14h10V34m28 0h10v14H46"></path>
+        <path d="M18 47c4 6 9 9 14 9s10-3 14-9"></path>
+      </svg>
+      <div class="status-content">
+        <p>Phones: <strong id="overlayPhonesValue">--%</strong></p>
+        <div class="status-meter"><span id="overlayPhonesFill"></span></div>
+      </div>
+    </div>
+
+    <div class="status-row mic-row">
+      <svg class="status-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="24" y="8" width="16" height="28" rx="8"></rect>
+        <path d="M17 30a15 15 0 0 0 30 0M32 45v11M23 56h18M8 8l48 48"></path>
+      </svg>
+      <p>Mic: <strong id="overlayMicValue">---</strong></p>
+    </div>
+
+    <div class="now-playing">
+      <svg class="next-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="m11 13 28 19-28 19V13Zm31 0h11v38H42V13Z"></path></svg>
+      <div>
+        <span id="overlayTrackLabel">Media</span>
+        <strong id="overlayTrackTitle">Nenhuma música detetada</strong>
+        <small id="overlayTrackDetail">Usa Play/Next na Hercules</small>
+      </div>
+    </div>
+  </aside>
+  <script src="overlay.js"></script>
+</body>
+</html>
