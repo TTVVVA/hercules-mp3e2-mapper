@@ -90,6 +90,7 @@ internal static class Program
                 "set-render-device-volume" => HandleSetRenderDeviceVolume(args.Skip(1).ToArray()),
                 "set-cable-monitor-volume" => HandleSetCableMonitorVolume(args.Skip(1).ToArray()),
                 "set-cable-listen-session-volume" => HandleSetCableListenSessionVolume(args.Skip(1).ToArray()),
+                "get-cable-listen-session-volume" => HandleGetCableListenSessionVolume(args.Skip(1).ToArray()),
                 "list-render-sessions" => HandleListRenderSessions(args.Skip(1).ToArray()),
                 "toggle-process-mute" => HandleToggleProcessMute(args.Skip(1).ToArray()),
                 "set-cable-listen" => HandleSetCableListen(args.Skip(1).ToArray()),
@@ -393,10 +394,7 @@ internal static class Program
             using var session = sessions[i];
             if (session is null) continue;
 
-            var isCableListenSession =
-                session.DisplayName.Contains("CABLE Output", StringComparison.OrdinalIgnoreCase) ||
-                session.GetSessionIdentifier.Contains("%b{35B782D1-09FD-4C86-BDCA-6B71B4F89DD8}", StringComparison.OrdinalIgnoreCase);
-            if (!isCableListenSession) continue;
+            if (!IsCableListenSession(session)) continue;
 
             session.SimpleAudioVolume.Mute = level <= 0.0001f;
             if (level > 0.0001f)
@@ -410,7 +408,8 @@ internal static class Program
                 Volume = level,
                 TargetId = device.ID,
                 TargetName = device.FriendlyName,
-                SourceName = "CABLE Output"
+                SourceName = "CABLE Output",
+                Muted = level <= 0.0001f
             }, 0);
         }
 
@@ -419,6 +418,46 @@ internal static class Program
             Ok = false,
             Error = "A sessão de monitorização CABLE Output não está disponível. Ative 'Escutar CABLE nos phones' e reproduza áudio."
         }, 2);
+    }
+
+    private static int HandleGetCableListenSessionVolume(string[] args)
+    {
+        var targetId = GetOption(args, "--target-id");
+        if (string.IsNullOrWhiteSpace(targetId))
+        {
+            return WriteJson(new Result { Ok = false, Error = "Missing --target-id." }, 1);
+        }
+
+        using var enumerator = new MMDeviceEnumerator();
+        using var device = enumerator.GetDevice(targetId);
+        var sessions = device.AudioSessionManager.Sessions;
+        for (var i = 0; i < sessions.Count; i++)
+        {
+            using var session = sessions[i];
+            if (session is null || !IsCableListenSession(session)) continue;
+
+            return WriteJson(new Result
+            {
+                Ok = true,
+                Volume = session.SimpleAudioVolume.Volume,
+                Muted = session.SimpleAudioVolume.Mute,
+                TargetId = device.ID,
+                TargetName = device.FriendlyName,
+                SourceName = "CABLE Output"
+            }, 0);
+        }
+
+        return WriteJson(new Result
+        {
+            Ok = false,
+            Error = "A sessão de monitorização CABLE Output não está disponível nos auscultadores selecionados."
+        }, 2);
+    }
+
+    private static bool IsCableListenSession(AudioSessionControl session)
+    {
+        return session.DisplayName.Contains("CABLE Output", StringComparison.OrdinalIgnoreCase) ||
+            session.GetSessionIdentifier.Contains("%b{35B782D1-09FD-4C86-BDCA-6B71B4F89DD8}", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int HandleToggleProcessMute(string[] args)

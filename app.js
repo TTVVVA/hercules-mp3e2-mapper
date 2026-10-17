@@ -356,6 +356,7 @@ const runtime = {
   cableListenBusy: false,
   discordRoutingBusy: false,
   personalVolumeDispatch: null,
+  personalVolumeReading: false,
   buttonActionCooldown: new Map(),
   midiLearnControlId: null,
   lastMidiControlId: null,
@@ -568,6 +569,13 @@ function canSetPersonalOutputVolume() {
   return Boolean(
     window.electronDesktop &&
     typeof window.electronDesktop.setPersonalOutputVolume === "function"
+  );
+}
+
+function canGetPersonalOutputVolume() {
+  return Boolean(
+    window.electronDesktop &&
+    typeof window.electronDesktop.getPersonalOutputVolume === "function"
   );
 }
 
@@ -878,6 +886,7 @@ async function initializeAudioRouter() {
   }
   runtime.audioRouterRunning = false;
   setAudioRouterStatus("Modo estável: o Windows encaminha CABLE Output para os Corsair; a app controla só o volume pessoal.");
+  await syncPersonalCableVolume({ silent: true });
   if (state.audioRouting.discordPrivateRoute && state.audioRouting.targetId && canRouteAppsToAudioDevices()) {
     void routeDiscordPrivately({ silent: true });
   }
@@ -957,6 +966,7 @@ function onPersonalOutputSelected() {
   renderActionConfigurator(getSelectedControl());
   const name = runtime.audioDevices.find((device) => device.id === targetId)?.name || "auscultadores";
   setAudioRouterStatus(`Os controlos pessoais vão ajustar ${name}; a partilha CABLE permanece a 100%.`);
+  void syncPersonalCableVolume({ silent: true });
   showToast(`Phones selecionados: ${name}`);
 }
 
@@ -965,7 +975,39 @@ function onAudioRoutingSelectionChanged() {
   state.audioRouting.targetId = elements.audioTargetSelect?.value || "";
   saveState();
   renderStatusOverview();
+  void syncPersonalCableVolume({ silent: true });
   setAudioRouterStatus("Dispositivos guardados. Confirme no Windows: CABLE Output → Propriedades → Ouvir → Corsair.");
+}
+
+async function syncPersonalCableVolume({ silent = false } = {}) {
+  const targetId = state.audioRouting.targetId;
+  if (!targetId || !canGetPersonalOutputVolume() || runtime.personalVolumeReading) return false;
+
+  runtime.personalVolumeReading = true;
+  try {
+    const result = await window.electronDesktop.getPersonalOutputVolume(targetId);
+    if (!result?.ok || !Number.isFinite(Number(result.volume))) {
+      if (!silent) {
+        setAudioRouterStatus(String(result?.error || "Não foi possível ler o volume CABLE dos phones."));
+      }
+      return false;
+    }
+
+    const realVolume = result.muted ? 0 : clampNumber(result.volume, 0, 1, state.audioRouting.personalVolume);
+    if (Math.abs(realVolume - state.audioRouting.personalVolume) > 0.0001) {
+      state.audioRouting.personalVolume = realVolume;
+      saveState();
+    }
+    renderAudioRouter();
+    return true;
+  } catch (error) {
+    if (!silent) {
+      setAudioRouterStatus(`Não foi possível ler o volume CABLE dos phones: ${String(error?.message || error)}`);
+    }
+    return false;
+  } finally {
+    runtime.personalVolumeReading = false;
+  }
 }
 
 function onPersonalVolumeInput() {
@@ -1027,14 +1069,19 @@ async function flushPersonalVolumeUpdate() {
   try {
     const result = await window.electronDesktop.setPersonalOutputVolume(targetId, volume);
     if (result?.ok) {
+      state.audioRouting.personalVolume = clampNumber(result.volume, 0, 1, volume);
+      saveState();
+      renderAudioRouter();
       const targetName = result.targetName || "auscultadores";
       setAudioRouterStatus(`Volume CABLE aplicado para ${targetName}. O Discord mantém o volume dele e a partilha fica a 100%.`);
     } else {
       setAudioRouterStatus(`Não foi possível ajustar os auscultadores: ${String(result?.error || "erro desconhecido")}`);
+      void syncPersonalCableVolume({ silent: true });
       renderAudioRouter();
     }
   } catch (error) {
     setAudioRouterStatus(`Não foi possível ajustar os auscultadores: ${String(error?.message || error)}`);
+    void syncPersonalCableVolume({ silent: true });
     renderAudioRouter();
   } finally {
     dispatch.inFlight = false;

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("electronDesktop", {
   listAudioDevices: () => ipcRenderer.invoke("desktop:list-audio-devices"),
   setDefaultAudioDevice: (deviceId) => ipcRenderer.invoke("desktop:set-default-audio-device", { deviceId }),
   setPersonalOutputVolume: (deviceId, volume) => ipcRenderer.invoke("desktop:set-personal-output-volume", { deviceId, volume }),
+  getPersonalOutputVolume: (deviceId) => ipcRenderer.invoke("desktop:get-personal-output-volume", { deviceId }),
   getCableListenStatus: () => ipcRenderer.invoke("desktop:get-cable-listen-status"),
   setCableListen: (enabled, targetId) => ipcRenderer.invoke("desktop:set-cable-listen", { enabled, targetId }),
   routeAppToAudioDevice: (processName, deviceId) => ipcRenderer.invoke("desktop:route-app-to-audio-device", { processName, deviceId }),

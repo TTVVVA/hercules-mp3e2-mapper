@@ -602,6 +602,19 @@ handleIpc("desktop:set-personal-output-volume", async (_event, payload) => {
   }
 });
 
+handleIpc("desktop:get-personal-output-volume", async (_event, payload) => {
+  const deviceId = String(payload?.deviceId || "").trim();
+  if (!deviceId) return { ok: false, error: "Escolha os auscultadores pessoais." };
+  try {
+    return asBridgeResult(await runAppVolumeBridge([
+      "get-cable-listen-session-volume",
+      "--target-id", deviceId
+    ]));
+  } catch (error) {
+    return { ok: false, error: String(error?.message || error) };
+  }
+});
+
 handleIpc("desktop:get-cable-listen-status", async () => {
   try {
     return asBridgeResult(await runAppVolumeBridge(["get-cable-listen-status"]));
