@@ -715,7 +715,9 @@ function publishLiveStatusOverlay(status) {
   if (dispatch.queued) return;
   dispatch.queued = true;
 
-  requestAnimationFrame(() => {
+  // A janela principal pode estar minimizada enquanto o painel flutuante está
+  // visível. Microtask não é suspensa em segundo plano como animation frames.
+  queueMicrotask(() => {
     dispatch.queued = false;
     const latest = dispatch.pending;
     dispatch.pending = null;
