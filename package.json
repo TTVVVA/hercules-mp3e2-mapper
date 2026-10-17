@@ -1,6 +1,6 @@
 {
   "name": "hercules-mp3e2-mapper",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "UI desktop para mapear os botoes da Hercules DJ Control MP3 e2",
   "main": "main.js",
   "author": "Codex",

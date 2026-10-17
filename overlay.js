@@ -6,6 +6,8 @@ const elements = {
   phonesValue: document.getElementById("overlayPhonesValue"),
   phonesFill: document.getElementById("overlayPhonesFill"),
   micValue: document.getElementById("overlayMicValue"),
+  internetLabel: document.getElementById("overlayInternetLabel"),
+  internetDetail: document.getElementById("overlayInternetDetail"),
   trackLabel: document.getElementById("overlayTrackLabel"),
   trackTitle: document.getElementById("overlayTrackTitle"),
   trackDetail: document.getElementById("overlayTrackDetail")
@@ -28,10 +30,15 @@ function render(state = {}) {
   elements.card.classList.toggle("is-mic-muted", micMuted);
   elements.card.classList.toggle("is-mic-live", micLive);
   elements.card.classList.toggle("is-locked", Boolean(state.locked));
+  ["excellent", "good", "fair", "weak", "offline", "checking"].forEach((quality) => {
+    elements.card.classList.toggle(`internet-${quality}`, state.internetState === quality);
+  });
 
   elements.lockButton.textContent = state.locked ? "🔒" : "🔓";
   elements.lockButton.title = state.locked ? "Desbloquear posição" : "Bloquear posição";
   elements.lockButton.setAttribute("aria-label", elements.lockButton.title);
+  elements.internetLabel.textContent = state.internetLabel || "A MEDIR...";
+  elements.internetDetail.textContent = state.internetDetail || "A verificar a Internet";
   elements.trackLabel.textContent = state.trackLabel || "Media";
   elements.trackTitle.textContent = state.trackTitle || "Nenhuma música detetada";
   elements.trackDetail.textContent = state.trackDetail || "Usa Play/Next na Hercules";

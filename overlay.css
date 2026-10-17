@@ -4,9 +4,9 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 body { padding: 3px; }
 
 .status-card {
-  width: 318px;
-  min-height: 286px;
-  padding: 13px 18px 14px;
+  width: 368px;
+  min-height: 390px;
+  padding: 15px 20px 16px;
   border: 2px solid #5ca9ff;
   border-radius: 18px;
   background: linear-gradient(145deg, rgba(32, 47, 66, 0.97), rgba(13, 17, 25, 0.98));
@@ -20,7 +20,7 @@ body { padding: 3px; }
 #lockButton:hover { background: rgba(255,255,255,0.1); }
 .status-card.is-locked .drag-bar { -webkit-app-region: no-drag; }
 
-.status-row { display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 12px; margin: 11px 0; }
+.status-row { display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 12px; margin: 12px 0; }
 .status-icon { width: 38px; height: 38px; fill: none; stroke: #e9f1fb; stroke-linecap: round; stroke-linejoin: round; stroke-width: 4; }
 .status-discord { fill: #e9f1fb; stroke: #18202c; stroke-width: 3; }
 .status-discord path:last-child { fill: none; stroke: #18202c; }
@@ -33,7 +33,18 @@ body { padding: 3px; }
 .status-card.is-mic-muted .mic-row .status-icon { stroke: #ff6d6d; }
 .status-card.is-mic-live .mic-row strong { color: #73ffaf; }
 
-.now-playing { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border: 1px solid rgba(117, 156, 203, 0.18); border-radius: 10px; background: rgba(4, 9, 15, 0.42); }
+.internet-row { display: grid; grid-template-columns: 46px 1fr; gap: 11px; align-items: center; margin: 12px 0 15px; padding: 9px 11px; border: 1px solid rgba(117, 156, 203, 0.2); border-radius: 11px; background: rgba(4, 9, 15, 0.42); }
+.internet-icon { width: 39px; height: 39px; fill: none; stroke: #a9c7e7; stroke-linecap: round; stroke-linejoin: round; stroke-width: 5; filter: drop-shadow(0 0 7px rgba(137, 197, 255, 0.22)); }
+.internet-content p, .internet-content small { margin: 0; display: block; }
+.internet-content p { color: #e8eef7; font-size: 1rem; font-weight: 650; }
+.internet-content strong { color: #b9d9ff; letter-spacing: 0.03em; }
+.internet-content small { margin-top: 2px; color: #a8bad0; font-size: 0.72rem; }
+.status-card.internet-excellent .internet-icon, .status-card.internet-excellent .internet-content strong { color: #70f5a2; stroke: #70f5a2; }
+.status-card.internet-good .internet-icon, .status-card.internet-good .internet-content strong { color: #c7f47a; stroke: #c7f47a; }
+.status-card.internet-fair .internet-icon, .status-card.internet-fair .internet-content strong { color: #ffd166; stroke: #ffd166; }
+.status-card.internet-weak .internet-icon, .status-card.internet-weak .internet-content strong, .status-card.internet-offline .internet-icon, .status-card.internet-offline .internet-content strong { color: #ff7777; stroke: #ff7777; }
+
+.now-playing { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center; padding: 10px 11px; border: 1px solid rgba(117, 156, 203, 0.18); border-radius: 10px; background: rgba(4, 9, 15, 0.42); }
 .next-icon { width: 26px; height: 26px; fill: #dcebff; }
 .now-playing span, .now-playing strong, .now-playing small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .now-playing span { color: #9ab4d2; font-size: 0.7rem; }

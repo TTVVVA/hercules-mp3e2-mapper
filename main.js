@@ -13,11 +13,16 @@ let mainWindow = null;
 let statusOverlayWindow = null;
 let appIsQuitting = false;
 let overlaySaveTimer = null;
+let internetStatusTimer = null;
+let internetProbeInFlight = false;
 let statusOverlayPreferences = { x: null, y: null, locked: false };
 let statusOverlayState = {
   discordPercent: null,
   phonesPercent: 75,
   micMuted: null,
+  internetState: "checking",
+  internetLabel: "A medir...",
+  internetDetail: "A verificar a Internet",
   trackLabel: "Media",
   trackTitle: "Nenhuma música detetada",
   trackDetail: "Usa Play/Next na Hercules",
@@ -123,18 +128,70 @@ function setStatusOverlayLocked(locked) {
   sendStatusOverlayState();
 }
 
+function probeInternetConnection() {
+  return new Promise((resolve) => {
+    const startedAt = process.hrtime.bigint();
+    let complete = false;
+    const socket = net.createConnection({ host: "1.1.1.1", port: 443 });
+
+    const finish = (result) => {
+      if (complete) return;
+      complete = true;
+      socket.destroy();
+      resolve(result);
+    };
+
+    socket.setTimeout(1800);
+    socket.once("connect", () => {
+      const latencyMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+      finish({ online: true, latencyMs });
+    });
+    socket.once("timeout", () => finish({ online: false }));
+    socket.once("error", () => finish({ online: false }));
+  });
+}
+
+function getInternetQuality(probe) {
+  if (!probe?.online || !Number.isFinite(probe.latencyMs)) {
+    return { state: "offline", label: "Sem ligacao", detail: "Internet indisponivel" };
+  }
+
+  const latencyMs = Math.max(0, Math.round(probe.latencyMs));
+  if (latencyMs <= 60) return { state: "excellent", label: "EXCELENTE", detail: `${latencyMs} ms` };
+  if (latencyMs <= 130) return { state: "good", label: "BOA", detail: `${latencyMs} ms` };
+  if (latencyMs <= 250) return { state: "fair", label: "RAZOAVEL", detail: `${latencyMs} ms` };
+  return { state: "weak", label: "FRACA", detail: `${latencyMs} ms` };
+}
+
+async function refreshInternetStatus() {
+  if (internetProbeInFlight || appIsQuitting) return;
+  internetProbeInFlight = true;
+  try {
+    const quality = getInternetQuality(await probeInternetConnection());
+    statusOverlayState = {
+      ...statusOverlayState,
+      internetState: quality.state,
+      internetLabel: quality.label,
+      internetDetail: quality.detail
+    };
+    sendStatusOverlayState();
+  } finally {
+    internetProbeInFlight = false;
+  }
+}
+
 function createStatusOverlayWindow() {
   const bounds = {};
   if (Number.isInteger(statusOverlayPreferences.x)) bounds.x = statusOverlayPreferences.x;
   if (Number.isInteger(statusOverlayPreferences.y)) bounds.y = statusOverlayPreferences.y;
 
   statusOverlayWindow = new BrowserWindow({
-    width: 324,
-    height: 292,
-    minWidth: 324,
-    minHeight: 292,
-    maxWidth: 324,
-    maxHeight: 292,
+    width: 374,
+    height: 396,
+    minWidth: 374,
+    minHeight: 396,
+    maxWidth: 374,
+    maxHeight: 396,
     ...bounds,
     frame: false,
     transparent: true,
@@ -748,6 +805,9 @@ function updateStatusOverlayState(payload) {
     discordPercent: percent(payload?.discordPercent),
     phonesPercent: percent(payload?.phonesPercent) ?? statusOverlayState.phonesPercent,
     micMuted: typeof payload?.micMuted === "boolean" ? payload.micMuted : null,
+    internetState: statusOverlayState.internetState,
+    internetLabel: statusOverlayState.internetLabel,
+    internetDetail: statusOverlayState.internetDetail,
     trackLabel: String(payload?.trackLabel || "Media").slice(0, 24),
     trackTitle: String(payload?.trackTitle || "Nenhuma música detetada").slice(0, 80),
     trackDetail: String(payload?.trackDetail || "Usa Play/Next na Hercules").slice(0, 90),
@@ -776,6 +836,8 @@ app.whenReady().then(() => {
   loadStatusOverlayPreferences();
   createStatusOverlayWindow();
   createMainWindow();
+  void refreshInternetStatus();
+  internetStatusTimer = setInterval(() => void refreshInternetStatus(), 3000);
 
   app.on("activate", () => {
     if (!mainWindow) {
@@ -787,6 +849,7 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
   appIsQuitting = true;
   clearTimeout(overlaySaveTimer);
+  clearInterval(internetStatusTimer);
   if (hotkeyServerProcess && !hotkeyServerProcess.killed) {
     hotkeyServerProcess.kill();
   }
