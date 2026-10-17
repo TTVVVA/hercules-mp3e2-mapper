@@ -646,6 +646,158 @@ button:active,
   z-index: 999;
 }
 
+.live-status-card {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 1001;
+  width: min(302px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px 18px 14px;
+  border: 2px solid #5ca9ff;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(32, 47, 66, 0.95), rgba(13, 17, 25, 0.96));
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.5), inset 0 1px rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(15px);
+  color: #edf4ff;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(16px) scale(0.97);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.live-status-card.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.live-status-title {
+  margin: 0 0 14px;
+  color: #b8cbe5;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.live-status-row {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.live-status-icon {
+  width: 38px;
+  height: 38px;
+  fill: none;
+  stroke: #e9f1fb;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.live-status-discord {
+  fill: #e9f1fb;
+  stroke: #18202c;
+  stroke-width: 3;
+}
+
+.live-status-discord path:last-child {
+  fill: none;
+  stroke: #18202c;
+}
+
+.live-status-content p,
+.live-status-mic-row p {
+  margin: 0;
+  color: #e8eef7;
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.live-status-content strong,
+.live-status-mic-row strong {
+  color: #b9d9ff;
+}
+
+.live-status-meter {
+  height: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(3, 7, 13, 0.64);
+}
+
+.live-status-meter span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #cce8ff, #95c7f7);
+  box-shadow: 0 0 12px rgba(142, 199, 255, 0.45);
+  transition: width 120ms linear;
+}
+
+.live-status-mic-row {
+  margin-top: 15px;
+  margin-bottom: 16px;
+}
+
+.live-status-card.is-mic-muted .live-status-mic-row,
+.live-status-card.is-mic-muted .live-status-mic-row strong {
+  color: #ff7676;
+}
+
+.live-status-card.is-mic-muted .live-status-mic-row .live-status-icon {
+  stroke: #ff6d6d;
+}
+
+.live-status-card.is-mic-live .live-status-mic-row strong {
+  color: #73ffaf;
+}
+
+.live-now-playing {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid rgba(117, 156, 203, 0.18);
+  border-radius: 10px;
+  background: rgba(4, 9, 15, 0.42);
+}
+
+.live-next-icon {
+  width: 26px;
+  height: 26px;
+  fill: #dcebff;
+}
+
+.live-now-playing span,
+.live-now-playing strong,
+.live-now-playing small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-now-playing span {
+  color: #9ab4d2;
+  font-size: 0.7rem;
+}
+
+.live-now-playing strong {
+  color: #edf4ff;
+  font-size: 0.78rem;
+}
+
+.live-now-playing small {
+  color: #a8bad0;
+  font-size: 0.68rem;
+}
+
 @media (max-width: 1100px) {
   .layout {
     grid-template-columns: 1fr;

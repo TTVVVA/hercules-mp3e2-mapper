@@ -290,6 +290,50 @@
     </main>
   </div>
 
+  <aside id="liveStatusCard" class="live-status-card" aria-live="polite" aria-label="Atualização de estado">
+    <p class="live-status-title">STATUS UPDATE</p>
+
+    <div class="live-status-row">
+      <svg class="live-status-icon live-status-discord" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M14 16c10-7 26-7 36 0 5 8 7 17 6 27-7 6-15 9-24 9s-17-3-24-9c-1-10 1-19 6-27Z"></path>
+        <path d="M22 44c3 3 7 4 10 4s7-1 10-4M24 28h.1M40 28h.1"></path>
+      </svg>
+      <div class="live-status-content">
+        <p>Discord: <strong id="liveDiscordValue">--%</strong></p>
+        <div class="live-status-meter"><span id="liveDiscordFill"></span></div>
+      </div>
+    </div>
+
+    <div class="live-status-row">
+      <svg class="live-status-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M12 38v-8a20 20 0 0 1 40 0v8"></path>
+        <path d="M12 34H8v14h10V34m28 0h10v14H46"></path>
+        <path d="M18 47c4 6 9 9 14 9s10-3 14-9"></path>
+      </svg>
+      <div class="live-status-content">
+        <p>Phones: <strong id="livePhonesValue">--%</strong></p>
+        <div class="live-status-meter"><span id="livePhonesFill"></span></div>
+      </div>
+    </div>
+
+    <div class="live-status-row live-status-mic-row">
+      <svg class="live-status-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="24" y="8" width="16" height="28" rx="8"></rect>
+        <path d="M17 30a15 15 0 0 0 30 0M32 45v11M23 56h18M8 8l48 48"></path>
+      </svg>
+      <p>Mic: <strong id="liveMicValue">---</strong></p>
+    </div>
+
+    <div class="live-now-playing">
+      <svg class="live-next-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="m11 13 28 19-28 19V13Zm31 0h11v38H42V13Z"></path></svg>
+      <div>
+        <span id="liveTrackLabel">Media</span>
+        <strong id="liveTrackTitle">Nenhuma música detetada</strong>
+        <small id="liveTrackDetail">Usa Play/Next na Hercules</small>
+      </div>
+    </div>
+  </aside>
+
   <template id="controlItemTemplate">
     <button type="button" class="control-item">
       <span class="control-item-name"></span>

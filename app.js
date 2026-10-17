@@ -258,6 +258,15 @@ const elements = {
   statusPhonesValue: document.getElementById("statusPhonesValue"),
   statusDiscord: document.getElementById("statusDiscord"),
   statusDiscordValue: document.getElementById("statusDiscordValue"),
+  liveStatusCard: document.getElementById("liveStatusCard"),
+  liveDiscordValue: document.getElementById("liveDiscordValue"),
+  liveDiscordFill: document.getElementById("liveDiscordFill"),
+  livePhonesValue: document.getElementById("livePhonesValue"),
+  livePhonesFill: document.getElementById("livePhonesFill"),
+  liveMicValue: document.getElementById("liveMicValue"),
+  liveTrackLabel: document.getElementById("liveTrackLabel"),
+  liveTrackTitle: document.getElementById("liveTrackTitle"),
+  liveTrackDetail: document.getElementById("liveTrackDetail"),
   audioOverviewMidi: document.getElementById("audioOverviewMidi"),
   audioOverviewCable: document.getElementById("audioOverviewCable"),
   audioOverviewVolume: document.getElementById("audioOverviewVolume"),
@@ -360,7 +369,15 @@ const runtime = {
   midiLearnControlId: null,
   lastMidiControlId: null,
   midiActivityTimer: null,
-  activeVoicePreset: "Normal"
+  activeVoicePreset: "Normal",
+  liveStatus: {
+    discordVolume: null,
+    micMuted: null,
+    trackLabel: "Media",
+    trackTitle: "Nenhuma música detetada",
+    trackDetail: "Usa Play/Next na Hercules",
+    hideTimer: null
+  }
 };
 
 let dragState = null;
@@ -379,6 +396,7 @@ function initialize() {
   void refreshOpenApps({ silent: true });
   void initializeAudioRouter();
   void initializeMidiRuntime();
+  void refreshLiveDiscordStatus();
 }
 
 function loadState() {
@@ -671,6 +689,83 @@ function renderStatusOverview() {
       ? `${shortDeviceName(target?.name)} · fora da partilha`
       : "Rota privada por confirmar";
   }
+
+  renderLiveStatusCard();
+}
+
+function renderLiveStatusCard() {
+  if (!elements.liveStatusCard) return;
+
+  const discordPercent = Number.isFinite(runtime.liveStatus.discordVolume)
+    ? Math.round(runtime.liveStatus.discordVolume * 100)
+    : null;
+  const phonesPercent = Math.round(state.audioRouting.personalVolume * 100);
+  const micMuted = runtime.liveStatus.micMuted;
+
+  if (elements.liveDiscordValue) {
+    elements.liveDiscordValue.textContent = discordPercent === null ? "--%" : `${discordPercent}%`;
+  }
+  if (elements.liveDiscordFill) {
+    elements.liveDiscordFill.style.width = `${discordPercent ?? 0}%`;
+  }
+  if (elements.livePhonesValue) {
+    elements.livePhonesValue.textContent = `${phonesPercent}%`;
+  }
+  if (elements.livePhonesFill) {
+    elements.livePhonesFill.style.width = `${phonesPercent}%`;
+  }
+  if (elements.liveMicValue) {
+    elements.liveMicValue.textContent = micMuted === null ? "---" : (micMuted ? "MUTE" : "LIVE");
+  }
+  elements.liveStatusCard.classList.toggle("is-mic-muted", micMuted === true);
+  elements.liveStatusCard.classList.toggle("is-mic-live", micMuted === false);
+
+  if (elements.liveTrackLabel) elements.liveTrackLabel.textContent = runtime.liveStatus.trackLabel;
+  if (elements.liveTrackTitle) elements.liveTrackTitle.textContent = runtime.liveStatus.trackTitle;
+  if (elements.liveTrackDetail) elements.liveTrackDetail.textContent = runtime.liveStatus.trackDetail;
+}
+
+function showLiveStatusCard(update = {}, duration = 4200) {
+  Object.assign(runtime.liveStatus, update);
+  renderLiveStatusCard();
+  if (!elements.liveStatusCard) return;
+
+  elements.liveStatusCard.classList.add("is-visible");
+  if (runtime.liveStatus.hideTimer) clearTimeout(runtime.liveStatus.hideTimer);
+  runtime.liveStatus.hideTimer = setTimeout(() => {
+    elements.liveStatusCard?.classList.remove("is-visible");
+    runtime.liveStatus.hideTimer = null;
+  }, duration);
+}
+
+async function refreshLiveDiscordStatus() {
+  if (!canGetAppVolume()) return;
+  try {
+    const result = await window.electronDesktop.getAppVolume("Discord");
+    if (result?.ok && Number.isFinite(Number(result.volume))) {
+      runtime.liveStatus.discordVolume = Number(result.volume);
+      renderLiveStatusCard();
+    }
+  } catch {
+    // O cartão continua disponível com o último valor conhecido.
+  }
+}
+
+function isDiscordProcessName(processName) {
+  return String(processName || "").trim().replace(/\.exe$/i, "").toLowerCase() === "discord";
+}
+
+function isDiscordMicMuteHotkey(keys) {
+  return String(keys || "").replace(/\s+/g, "").toUpperCase() === "A+S+C+O";
+}
+
+function showMediaControlStatus(actionType) {
+  const next = {
+    media_play_pause: { trackLabel: "Media", trackTitle: "Play / Pause", trackDetail: "Comando enviado pela Hercules" },
+    media_prev: { trackLabel: "Previous", trackTitle: "Faixa anterior", trackDetail: "Comando enviado pela Hercules" },
+    media_next: { trackLabel: "Next", trackTitle: "Faixa seguinte", trackDetail: "Comando enviado pela Hercules" }
+  };
+  showLiveStatusCard(next[actionType] || {});
 }
 
 function setActiveView(view) {
@@ -905,6 +1000,7 @@ function onPersonalVolumeInput() {
   saveState();
   renderAudioRouter();
   queuePersonalVolumeUpdate(state.audioRouting.personalVolume);
+  showLiveStatusCard();
 }
 
 function changePersonalVolumeBy(amount) {
@@ -920,6 +1016,7 @@ function changePersonalVolumeBy(amount) {
   saveState();
   renderAudioRouter();
   queuePersonalVolumeUpdate(nextVolume);
+  showLiveStatusCard();
   showToast(`Volume dos phones: ${Math.round(nextVolume * 100)}%`);
 }
 
@@ -1395,6 +1492,9 @@ async function flushAppVolumeUpdate(controlId) {
   const result = await window.electronDesktop.setAppVolume(processName, volume);
   if (result?.ok) {
     runtime.appVolumeErrorCache.delete(controlId);
+    if (isDiscordProcessName(processName)) {
+      showLiveStatusCard({ discordVolume: Number.isFinite(Number(result.volume)) ? Number(result.volume) : volume });
+    }
     return;
   }
 
@@ -1472,6 +1572,9 @@ async function flushRelativeAppVolumeUpdate(controlId) {
 
       entry.volume = Number.isFinite(Number(result.volume)) ? Number(result.volume) : nextVolume;
       runtime.appVolumeErrorCache.delete(controlId);
+      if (isDiscordProcessName(entry.processName)) {
+        showLiveStatusCard({ discordVolume: entry.volume });
+      }
     }
   } finally {
     entry.running = false;
@@ -1545,6 +1648,11 @@ async function handleMappedButtonPress(controlId) {
     showToast(errorText);
   } else if (action.type === "discord_mute_toggle") {
     showToast(result.muted ? "Discord em mute." : "Discord com som.");
+  } else if (action.type === "hotkey" && isDiscordMicMuteHotkey(action.value)) {
+    const nextMuted = runtime.liveStatus.micMuted === null ? true : !runtime.liveStatus.micMuted;
+    showLiveStatusCard({ micMuted: nextMuted });
+  } else if (["media_play_pause", "media_prev", "media_next"].includes(action.type)) {
+    showMediaControlStatus(action.type);
   }
 }
 
